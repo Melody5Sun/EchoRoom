@@ -11,7 +11,7 @@ import urllib.request
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', required=True)
 args = parser.parse_args()
-query = urllib.parse.urlencode({'query': 'sum(streamhub_realtime_send_connections)'})
+query = urllib.parse.urlencode({'query': 'sum(echoroom_realtime_send_connections)'})
 with urllib.request.urlopen('http://localhost:9090/api/v1/query?' + query, timeout=5) as response:
     active = json.load(response)['data']['result']
 if not active or any(float(item['value'][1]) != 0 for item in active):
@@ -40,7 +40,7 @@ def heap(text):
 
 try:
     for suffix in nodes:
-        node = 'streamhub-' + suffix
+        node = 'echoroom-' + suffix
         uid = run(['docker', 'exec', node, 'id', '-u']).strip()
         gid = run(['docker', 'exec', node, 'id', '-g']).strip()
         started = run(['docker', 'inspect', '--format', '{{.State.StartedAt}}', node]).strip()
@@ -59,8 +59,8 @@ try:
         report['nodes'][node] = {'before': heap(before), 'after': heap(after),
                                  'startedAt': started,
                                  'sessionObjects': {name: classes.get(name, 0) for name in [
-                                     'com.streamhub.live.RoomSessionRegistry$SessionState',
-                                     'com.streamhub.live.SessionSender$Outbound']},
+                                     'com.echoroom.live.RoomSessionRegistry$SessionState',
+                                     'com.echoroom.live.SessionSender$Outbound']},
                                  'beforeText': before, 'afterText': after, 'gc': gc,
                                  'histogram': histogram}
         print(json.dumps({'node': node, 'before': heap(before), 'after': heap(after)}), flush=True)

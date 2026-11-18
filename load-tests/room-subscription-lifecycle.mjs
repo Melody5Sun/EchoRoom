@@ -24,13 +24,13 @@ const report={run,roomId:room,passed:false};
 async function docker(args) {
   return (await execute('docker',args,{timeout:15000,encoding:'utf8'})).stdout.trim();
 }
-const lines=(await docker(['exec','streamhub-ha-sentinel-1-1','redis-cli','-p','26379','--raw','SENTINEL','get-master-addr-by-name','streamhub'])).split(/\r?\n/);
+const lines=(await docker(['exec','echoroom-ha-sentinel-1-1','redis-cli','-p','26379','--raw','SENTINEL','get-master-addr-by-name','echoroom'])).split(/\r?\n/);
 const [primary,port]=lines;
 const allowed=new Set(['redis-1','redis-2','redis-3']);
-for(let i=1;i<=3;i++) allowed.add(await docker(['inspect','--format','{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}',`streamhub-ha-redis-${i}-1`]));
+for(let i=1;i<=3;i++) allowed.add(await docker(['inspect','--format','{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}',`echoroom-ha-redis-${i}-1`]));
 if (!allowed.has(primary) || port!=='6379') throw new Error('Unexpected Sentinel primary');
 async function redis(args) {
-  return docker(['exec','streamhub-ha-sentinel-1-1','redis-cli','-h',primary,'-p',port,'--raw',...args]);
+  return docker(['exec','echoroom-ha-sentinel-1-1','redis-cli','-h',primary,'-p',port,'--raw',...args]);
 }
 async function subscribers() {
   return Number((await redis(['PUBSUB','NUMSUB',channel])).split(/\r?\n/).at(-1));

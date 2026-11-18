@@ -1,10 +1,10 @@
 spring:
   application:
-    name: streamhub-auth
+    name: echoroom-auth
   config:
     import:
-      - optional:nacos:streamhub-shared.yaml?group=${NACOS_CONFIG_GROUP:STREAMHUB}&refreshEnabled=true
-      - optional:nacos:${spring.application.name}.yaml?group=${NACOS_CONFIG_GROUP:STREAMHUB}&refreshEnabled=true
+      - optional:nacos:echoroom-shared.yaml?group=${NACOS_CONFIG_GROUP:ECHOROOM}&refreshEnabled=true
+      - optional:nacos:${spring.application.name}.yaml?group=${NACOS_CONFIG_GROUP:ECHOROOM}&refreshEnabled=true
   cloud:
     nacos:
       discovery:
@@ -14,9 +14,9 @@ spring:
         server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
         enabled: ${NACOS_CONFIG_ENABLED:true}
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:13306/streamhub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&createDatabaseIfNotExist=true}
-    username: ${DB_USERNAME:streamhub}
-    password: ${DB_PASSWORD:streamhub}
+    url: ${DB_URL:jdbc:mysql://localhost:13306/echoroom?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&createDatabaseIfNotExist=true}
+    username: ${DB_USERNAME:echoroom}
+    password: ${DB_PASSWORD:echoroom}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: ${AUTH_DB_POOL_MAX_SIZE:10}
@@ -44,11 +44,11 @@ spring:
 server:
   port: ${SERVER_PORT:8081}
 
-streamhub:
+echoroom:
   auth:
     access-ttl: ${AUTH_ACCESS_TTL:15m}
     refresh-ttl: ${AUTH_REFRESH_TTL:30d}
-    refresh-cookie-name: ${AUTH_REFRESH_COOKIE_NAME:streamhub_refresh}
+    refresh-cookie-name: ${AUTH_REFRESH_COOKIE_NAME:echoroom_refresh}
     cookie-secure: ${AUTH_COOKIE_SECURE:false}
     cookie-same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
     ws-ticket-ttl: ${AUTH_WS_TICKET_TTL:30s}
@@ -58,9 +58,9 @@ management:
     distribution:
       percentiles-histogram:
         http.server.requests: true
-        streamhub.realtime.send.duration: true
-        streamhub.wallet.lock.duration: true
-        streamhub.gift.transaction.duration: true
+        echoroom.realtime.send.duration: true
+        echoroom.wallet.lock.duration: true
+        echoroom.gift.transaction.duration: true
   endpoints:
     web:
       exposure:
@@ -78,5 +78,5 @@ spring:
   data:
     redis:
       sentinel:
-        master: ${REDIS_SENTINEL_MASTER:streamhub}
+        master: ${REDIS_SENTINEL_MASTER:echoroom}
         nodes: ${REDIS_SENTINEL_NODES:sentinel-1:26379,sentinel-2:26379,sentinel-3:26379}

@@ -1,4 +1,4 @@
-"""Fault only the isolated streamhub-ha project; verify real Gateway orders and ledger effects."""
+"""Fault only the isolated echoroom-ha project; verify real Gateway orders and ledger effects."""
 import json
 from pathlib import Path
 import re
@@ -14,7 +14,7 @@ base = fixture['baseUrl']
 sender = fixture['participants'][-1]
 orders = []
 results = {}
-compose = ['docker', 'compose', '-p', 'streamhub-ha', '-f', str(root/'docker-compose.infra-ha.yml'), '--profile', '*']
+compose = ['docker', 'compose', '-p', 'echoroom-ha', '-f', str(root/'docker-compose.infra-ha.yml'), '--profile', '*']
 
 def docker(args, data=None):
     run = subprocess.run(compose+args, input=data, text=True, capture_output=True, timeout=60)
@@ -36,7 +36,7 @@ def request(path, body=None, account=sender):
 
 def sql(query):
     return docker(['exec','-T','mysql-2','sh','-ec',
-                   'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -h mysql-router -P 6446 -N streamhub'],query).strip()
+                   'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -h mysql-router -P 6446 -N echoroom'],query).strip()
 
 def place():
     order='ha-'+uuid.uuid4().hex
@@ -57,7 +57,7 @@ def completed(order, timeout=90):
 
 def broker_primary():
     value=admin(['clusterList','-n','namesrv-2:9876'])
-    match=re.search(r'(?m)^StreamHubHA\s+streamhub-broker\s+0\s+(broker-[12]):10911',value)
+    match=re.search(r'(?m)^EchoRoomHA\s+echoroom-broker\s+0\s+(broker-[12]):10911',value)
     return match.group(1) if match else None
 
 before_sender=request('/api/v1/wallet')['balance']
@@ -119,8 +119,8 @@ finally:
 
 try:
     docker(['stop','namesrv-1'])
-    route=admin(['topicRoute','-n','namesrv-2:9876','-t','STREAMHUB_GIFT_ORDER'])
-    if 'streamhub-broker' not in route:
+    route=admin(['topicRoute','-n','namesrv-2:9876','-t','ECHOROOM_GIFT_ORDER'])
+    if 'echoroom-broker' not in route:
         raise RuntimeError('Surviving NameServer has no gift route')
     results['nameserver']={'survivingRouteVerified':True,'orderCompletionMs':completed(place())}
 finally:
@@ -129,7 +129,7 @@ finally:
 try:
     docker(['stop','nacos-1'])
     nodes=json.loads(docker(['exec','-T','nacos-2','curl','-fsS',
-        'http://localhost:8848/nacos/v1/ns/instance/list?serviceName=streamhub-live&groupName=DEFAULT_GROUP']))
+        'http://localhost:8848/nacos/v1/ns/instance/list?serviceName=echoroom-live&groupName=DEFAULT_GROUP']))
     healthy=[item for item in nodes.get('hosts',[]) if item.get('healthy')]
     if len(healthy)<2:
         raise RuntimeError('Surviving Nacos node did not retain both healthy Live instances')

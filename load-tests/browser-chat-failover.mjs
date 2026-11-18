@@ -15,7 +15,7 @@ const base=fixture.baseUrl;
 const run='browser-'+randomUUID().slice(0,8);
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const docker=promisify(execFile);
-const nodes=['streamhub-live-service-1','streamhub-live-service-2'];
+const nodes=['echoroom-live-service-1','echoroom-live-service-2'];
 const accepted=new Map(),direct=new Set(),pending=new Map();
 const report={run,realBrowser:true,openedSockets:0,closedSockets:0};
 let browser,publisher,target,timer,heartbeat,seq=0;
@@ -37,7 +37,7 @@ function metrics(node) {
   const text=execFileSync('docker',['exec',node,'wget','-qO-','http://localhost:8083/actuator/prometheus'],
     {windowsHide:true,timeout:10000,encoding:'utf8'});
   const value=name=>Number(text.match(new RegExp(`^${name} ([0-9.eE+-]+)$`,'m'))?.[1] ?? NaN);
-  return {connections:value('streamhub_realtime_send_connections'),subscriptions:value('streamhub_realtime_subscriptions')};
+  return {connections:value('echoroom_realtime_send_connections'),subscriptions:value('echoroom_realtime_subscriptions')};
 }
 async function openPublisher(roomId) {
   const ticket=await api('/api/v1/auth/ws-ticket',{});
@@ -115,9 +115,9 @@ try {
   const after=Object.fromEntries(nodes.map(node=>[node,metrics(node)]));report.after=after;
   if(nodes.filter(node=>after[node].connections===0 && after[node].subscriptions===0).length!==1)
     throw new Error('No-audience node did not unsubscribe');
-  const master=execFileSync('docker',['exec','streamhub-ha-sentinel-1-1','redis-cli','-p','26379','--raw',
-    'SENTINEL','get-master-addr-by-name','streamhub'],{windowsHide:true,encoding:'utf8',timeout:10000}).trim().split(/\r?\n/)[0];
-  const redisNode=[1,2,3].map(i=>`streamhub-ha-redis-${i}-1`).find(node=>
+  const master=execFileSync('docker',['exec','echoroom-ha-sentinel-1-1','redis-cli','-p','26379','--raw',
+    'SENTINEL','get-master-addr-by-name','echoroom'],{windowsHide:true,encoding:'utf8',timeout:10000}).trim().split(/\r?\n/)[0];
+  const redisNode=[1,2,3].map(i=>`echoroom-ha-redis-${i}-1`).find(node=>
     execFileSync('docker',['inspect','--format','{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}',node],
       {windowsHide:true,encoding:'utf8',timeout:10000}).trim()===master);
   if(!redisNode)throw new Error('Cannot identify rehearsal Redis master');

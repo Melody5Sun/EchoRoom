@@ -7,7 +7,7 @@ import path from 'node:path';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const {chromium}=createRequire(path.join(root,'frontend/package.json'))('playwright');
 const fixture=JSON.parse(readFileSync(path.join(root,'load-tests/results/fixture.json'),'utf8'));
-const compose=['compose','-p','streamhub-ha','-f',path.join(root,'docker-compose.infra-ha.yml'),'--profile','*'];
+const compose=['compose','-p','echoroom-ha','-f',path.join(root,'docker-compose.infra-ha.yml'),'--profile','*'];
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const publishers=[];
 function docker(args) {

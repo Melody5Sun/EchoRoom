@@ -9,13 +9,13 @@ let cluster;
 if (hasMetadata) {
   // A reachable secondary may know an existing healthy primary even if mysql-1 is offline.
   for (let i=1;i<=3 && !cluster;i++) {
-    try { shell.connect(connection('mysql-'+i)); cluster = dba.getCluster('streamhub'); }
+    try { shell.connect(connection('mysql-'+i)); cluster = dba.getCluster('echoroom'); }
     catch (error) { print('Cluster lookup: '+error.message); }
   }
   if (!cluster) {
     // Never force divergent transactions away. AdminAPI validates the GTID superset.
     for (let i=1;i<=3 && !cluster;i++) {
-      try { shell.connect(connection('mysql-'+i)); cluster = dba.rebootClusterFromCompleteOutage('streamhub'); }
+      try { shell.connect(connection('mysql-'+i)); cluster = dba.rebootClusterFromCompleteOutage('echoroom'); }
       catch (error) { print('Recovery candidate mysql-'+i+': '+error.message); }
     }
   }
@@ -23,7 +23,7 @@ if (hasMetadata) {
 } else {
   for (let i=1;i<=3;i++) dba.configureInstance(connection('mysql-'+i));
   shell.connect(connection('mysql-1'));
-  cluster = dba.createCluster('streamhub', {gtidSetIsComplete:true});
+  cluster = dba.createCluster('echoroom', {gtidSetIsComplete:true});
 }
 const topology = cluster.status().defaultReplicaSet.topology;
 for (let i=1;i<=3;i++) {
@@ -33,7 +33,7 @@ for (let i=1;i<=3;i++) {
 }
 const primary = cluster.status().defaultReplicaSet.primary.split(':')[0];
 shell.connect(connection(primary));
-session.runSql('CREATE DATABASE IF NOT EXISTS streamhub');
-session.runSql("CREATE USER IF NOT EXISTS 'streamhub'@'%' IDENTIFIED BY ?", [appPassword]);
-session.runSql("GRANT ALL ON streamhub.* TO 'streamhub'@'%'");
+session.runSql('CREATE DATABASE IF NOT EXISTS echoroom');
+session.runSql("CREATE USER IF NOT EXISTS 'echoroom'@'%' IDENTIFIED BY ?", [appPassword]);
+session.runSql("GRANT ALL ON echoroom.* TO 'echoroom'@'%'");
 print(JSON.stringify(cluster.status()));

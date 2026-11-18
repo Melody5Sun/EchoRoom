@@ -1,0 +1,219 @@
+package com.echoroom.live;
+
+import java.sql.PreparedStatement;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.List;
+import java.util.Optional;
+
+import com.echoroom.common.api.PageResult;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class LiveRoomRepository {
+    private final JdbcTemplate jdbcTemplate;
+    private final MetadataCache cache;
+
+    public LiveRoomRepository(JdbcTemplate jdbcTemplate) { this.jdbcTemplate = jdbcTemplate; this.cache = null; }
+    @org.springframework.beans.factory.annotation.Autowired
+    public LiveRoomRepository(JdbcTemplate jdbcTemplate, MetadataCache cache) { this.jdbcTemplate = jdbcTemplate; this.cache = cache; }
+    public Optional<LiveRoom> findCachedById(long roomId) {
+        return cache == null ? findById(roomId) : cache.get("metadata:room:" + roomId, LiveRoom.class, () -> findById(roomId));
+    }
+    public void invalidate(long roomId) { if (cache != null) cache.invalidate("metadata:room:" + roomId); }
+
+    public long create(long anchorId, CreateRoomRequest request) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement statement = connection.prepareStatement(
+                    "INSERT INTO live_room(anchor_id, title, cover_url, category) VALUES (?, ?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS);
+            statement.setLong(1, anchorId);
+            statement.setString(2, request.title().trim());
+            statement.setString(3, request.coverUrl());
+            statement.setString(4, request.category());
+            return statement;
+        }, keyHolder);
+        Number key = keyHolder.getKey();
+        if (key == null) {
+            throw new IllegalStateException("创建直播间后没有返回房间 ID");
+        }
+        return key.longValue();
+    }
+
+    public Optional<LiveRoom> findById(long roomId) {
+        List<LiveRoom> rooms = jdbcTemplate.query(
+                "SELECT id, anchor_id, title, cover_url, category, status, created_at, updated_at "
+                        + "FROM live_room WHERE id = ?",
+                (resultSet, rowNum) -> new LiveRoom(
+                        resultSet.getLong("id"),
+                        resultSet.getLong("anchor_id"),
+                        resultSet.getString("title"),
+                        resultSet.getString("cover_url"),
+                        resultSet.getString("category"),
+                        resultSet.getString("status"),
+                        resultSet.getTimestamp("created_at").toInstant(),
+                        resultSet.getTimestamp("updated_at").toInstant()),
+                roomId);
+        return rooms.stream().findFirst();
+    }
+
+    public boolean start(long roomId, long anchorId, String streamKeyHash) {
+        invalidate(roomId);
+        return jdbcTemplate.update(
+                "UPDATE live_room SET status = 'LIVE', stream_key_hash = ?, updated_at = CURRENT_TIMESTAMP(3) "
+                        + "WHERE id = ? AND anchor_id = ? AND status = 'OFFLINE'",
+                streamKeyHash,
+                roomId,
+                anchorId) == 1;
+    }
+
+    public void createSession(long roomId, String playbackUrl) {
+        jdbcTemplate.update(
+                "INSERT INTO live_session(room_id, started_at, playback_url) VALUES (?, ?, ?)",
+                roomId,
+                Timestamp.from(java.time.Instant.now()),
+                playbackUrl);
+    }
+
+    public boolean end(long roomId, long anchorId) {
+        invalidate(roomId);
+        return jdbcTemplate.update(
+                "UPDATE live_room SET status = 'OFFLINE', updated_at = CURRENT_TIMESTAMP(3) "
+                        + "WHERE id = ? AND anchor_id = ? AND status = 'LIVE'",
+                roomId,
+                anchorId) == 1;
+    }
+
+    public void endCurrentSession(long roomId) {
+        jdbcTemplate.update(
+                "UPDATE live_session SET ended_at = CURRENT_TIMESTAMP(3) "
+                        + "WHERE room_id = ? AND ended_at IS NULL",
+                roomId);
+    }
+
+    public boolean update(long roomId, long anchorId, CreateRoomRequest request) {
+        invalidate(roomId);
+        return jdbcTemplate.update(
+                "UPDATE live_room SET title = ?, cover_url = ?, category = ?, updated_at = CURRENT_TIMESTAMP(3) "
+                        + "WHERE id = ? AND anchor_id = ?",
+                request.title().trim(),
+                request.coverUrl(),
+                request.category(),
+                roomId,
+                anchorId) == 1;
+    }
+
+    public PageResult<LiveRoom> page(String status, String category, String keyword, int page, int pageSize, Long anchorId) {
+        int safePage = Math.max(1, page);
+        int safePageSize = Math.max(1, Math.min(pageSize, 100));
+        StringBuilder condition = new StringBuilder(" WHERE 1 = 1");
+        List<Object> args = new java.util.ArrayList<>();
+        if (status != null && !status.isBlank()) {
+            condition.append(" AND status = ?");
+            args.add(status.trim());
+        }
+        if (category != null && !category.isBlank()) {
+            condition.append(" AND category = ?");
+            args.add(category.trim());
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            condition.append(" AND title LIKE ?");
+            args.add("%" + keyword.trim() + "%");
+        }
+        if (anchorId != null) {
+            condition.append(" AND anchor_id = ?");
+            args.add(anchorId);
+        }
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM live_room" + condition, Long.class, args.toArray());
+        args.add(safePageSize);
+        args.add((safePage - 1) * safePageSize);
+        List<LiveRoom> items = jdbcTemplate.query(
+                "SELECT id, anchor_id, title, cover_url, category, status, created_at, updated_at "
+                        + "FROM live_room" + condition + " ORDER BY status = 'LIVE' DESC, updated_at DESC LIMIT ? OFFSET ?",
+                (resultSet, rowNum) -> new LiveRoom(
+                        resultSet.getLong("id"),
+                        resultSet.getLong("anchor_id"),
+                        resultSet.getString("title"),
+                        resultSet.getString("cover_url"),
+                        resultSet.getString("category"),
+                        resultSet.getString("status"),
+                        resultSet.getTimestamp("created_at").toInstant(),
+                        resultSet.getTimestamp("updated_at").toInstant()),
+                args.toArray());
+        return PageResult.of(items, safePage, safePageSize, total == null ? 0 : total);
+    }
+
+    public PageResult<LiveRoom> pageFollowing(long userId, int page, int pageSize) {
+        return pageByRelation(
+                "EXISTS (SELECT 1 FROM user_follow f WHERE f.user_id = ? AND f.anchor_id = r.anchor_id)",
+                userId,
+                page,
+                pageSize);
+    }
+
+    public PageResult<LiveRoom> pageFavorites(long userId, int page, int pageSize) {
+        return pageByRelation(
+                "EXISTS (SELECT 1 FROM live_room_favorite f WHERE f.user_id = ? AND f.room_id = r.id)",
+                userId,
+                page,
+                pageSize);
+    }
+
+    private PageResult<LiveRoom> pageByRelation(String relation, long userId, int page, int pageSize) {
+        int safePage = Math.max(1, page);
+        int safePageSize = Math.max(1, Math.min(pageSize, 100));
+        Long total = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM live_room r WHERE " + relation,
+                Long.class,
+                userId);
+        List<LiveRoom> items = jdbcTemplate.query(
+                "SELECT r.id, r.anchor_id, r.title, r.cover_url, r.category, r.status, r.created_at, r.updated_at "
+                        + "FROM live_room r WHERE " + relation
+                        + " ORDER BY r.status = 'LIVE' DESC, r.updated_at DESC LIMIT ? OFFSET ?",
+                (resultSet, rowNum) -> new LiveRoom(
+                        resultSet.getLong("id"),
+                        resultSet.getLong("anchor_id"),
+                        resultSet.getString("title"),
+                        resultSet.getString("cover_url"),
+                        resultSet.getString("category"),
+                        resultSet.getString("status"),
+                        resultSet.getTimestamp("created_at").toInstant(),
+                        resultSet.getTimestamp("updated_at").toInstant()),
+                userId,
+                safePageSize,
+                (safePage - 1) * safePageSize);
+        return PageResult.of(items, safePage, safePageSize, total == null ? 0 : total);
+    }
+
+    public boolean adminStop(long roomId) {
+        invalidate(roomId);
+        return jdbcTemplate.update(
+                "UPDATE live_room SET status = 'OFFLINE', updated_at = CURRENT_TIMESTAMP(3) "
+                        + "WHERE id = ? AND status = 'LIVE'",
+                roomId) == 1;
+    }
+
+    public long countByStatus(String status) {
+        Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM live_room WHERE status = ?", Long.class, status);
+        return count == null ? 0 : count;
+    }
+
+    public long countAll() {
+        Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM live_room", Long.class);
+        return count == null ? 0 : count;
+    }
+
+    public void appendAudit(long operatorId, String action, String targetType, String targetId, String reason) {
+        jdbcTemplate.update(
+                "INSERT INTO ops_audit_log(operator_id, action, target_type, target_id, reason) VALUES (?, ?, ?, ?, ?)",
+                operatorId,
+                action,
+                targetType,
+                targetId,
+                reason);
+    }
+}

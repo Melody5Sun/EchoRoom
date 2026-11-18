@@ -35,7 +35,7 @@ async function submit() {
 <template>
   <main class="auth-page">
     <section class="auth-intro">
-      <p class="eyebrow">STREAMHUB ACCOUNT</p>
+      <p class="eyebrow">ECHOROOM ACCOUNT</p>
       <h1>回到你关注的现场。</h1>
       <div class="hero-rule" />
       <p>登录后继续观看直播、参与弹幕互动，并管理你的关注与收藏。</p>
@@ -43,7 +43,7 @@ async function submit() {
     <section class="form-card surface" aria-labelledby="login-title">
       <p class="eyebrow">欢迎回来</p>
       <h2 id="login-title">登录账号</h2>
-      <p class="form-intro">使用用户名和密码登录 StreamHub。</p>
+      <p class="form-intro">使用用户名和密码登录 EchoRoom。</p>
       <NAlert v-if="error" type="error" :show-icon="false" class="form-alert">{{ error }}</NAlert>
       <NSpace vertical size="large">
         <NFormItem label="用户名">

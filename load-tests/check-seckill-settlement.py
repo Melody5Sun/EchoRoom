@@ -35,8 +35,8 @@ def docker(arguments, query=None):
         capture_output=True,timeout=30,check=True).stdout.strip()
 
 def sql(query):
-    return docker(['compose','-p','streamhub-ha','-f',str(root/'docker-compose.infra-ha.yml'),'exec','-T','mysql-2',
-        'sh','-ec','MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -h mysql-router -P 6446 -N -B streamhub'],query)
+    return docker(['compose','-p','echoroom-ha','-f',str(root/'docker-compose.infra-ha.yml'),'exec','-T','mysql-2',
+        'sh','-ec','MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -h mysql-router -P 6446 -N -B echoroom'],query)
 
 scope=f"o.order_no LIKE '{args.run}-%'"
 rows=sql(f'SELECT o.activity_id,o.status,COUNT(*),COUNT(DISTINCT o.user_id) FROM activity_order o WHERE {scope} GROUP BY o.activity_id,o.status;')
@@ -56,11 +56,11 @@ published=int(sql(f"""SELECT COUNT(*) FROM activity_order o
   WHERE {scope};"""))
 if published!=total: raise RuntimeError('Each order must have both SENT Outbox events')
 
-sentinel='streamhub-ha-sentinel-1-1'
-master,port=docker(['exec',sentinel,'redis-cli','-p','26379','--raw','SENTINEL','get-master-addr-by-name','streamhub']).splitlines()
+sentinel='echoroom-ha-sentinel-1-1'
+master,port=docker(['exec',sentinel,'redis-cli','-p','26379','--raw','SENTINEL','get-master-addr-by-name','echoroom']).splitlines()
 addresses={f'redis-{i}' for i in range(1,4)}
 for index in range(1,4):
-    addresses.add(docker(['inspect','--format','{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}',f'streamhub-ha-redis-{index}-1']))
+    addresses.add(docker(['inspect','--format','{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}',f'echoroom-ha-redis-{index}-1']))
 if master not in addresses or port!='6379': raise RuntimeError('Unexpected Redis primary address')
 
 def redis(command,key):

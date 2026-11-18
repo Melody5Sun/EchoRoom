@@ -11,17 +11,17 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.streamhub</groupId>
-    <artifactId>streamhub</artifactId>
+    <groupId>com.echoroom</groupId>
+    <artifactId>echoroom</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>StreamHub</name>
+    <name>EchoRoom</name>
     <description>高并发直播互动与虚拟礼物平台</description>
 
     <modules>
-        <module>streamhub-common</module>
+        <module>echoroom-common</module>
         <module>database-migrations</module>
-        <module>streamhub-gateway-support</module>
+        <module>echoroom-gateway-support</module>
         <module>auth-service</module>
         <module>user-service</module>
         <module>live-service</module>

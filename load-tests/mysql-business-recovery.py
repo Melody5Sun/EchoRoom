@@ -27,9 +27,9 @@ def api(route, body=None, account=sender):
     return result['data']
 
 def sql(query):
-    result = subprocess.run(['docker', 'compose', '-p', 'streamhub-ha', '-f',
+    result = subprocess.run(['docker', 'compose', '-p', 'echoroom-ha', '-f',
         str(root / 'docker-compose.infra-ha.yml'), 'exec', '-T', 'mysql-2', 'sh', '-ec',
-        'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -h mysql-router -P 6446 -N -B streamhub'],
+        'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -h mysql-router -P 6446 -N -B echoroom'],
         input=query, text=True, capture_output=True, timeout=20, check=True)
     return result.stdout.strip()
 

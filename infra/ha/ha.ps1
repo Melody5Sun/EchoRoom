@@ -5,7 +5,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$compose = @('compose','-p','streamhub-ha','-f',(Join-Path $root 'docker-compose.infra-ha.yml'))
+$compose = @('compose','-p','echoroom-ha','-f',(Join-Path $root 'docker-compose.infra-ha.yml'))
 if($LowMemory){$compose+=@('-f',(Join-Path $root 'docker-compose.verify-infra.yml'))}
 $compose+=@('--profile','*')
 $groups = @{
@@ -41,8 +41,8 @@ switch ($Action) {
                     Invoke-Compose @('exec','-T','mysql-2','sh','-ec','MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -e "SELECT MEMBER_HOST,MEMBER_STATE,MEMBER_ROLE FROM performance_schema.replication_group_members"')
                 }
                 redis {
-                    Invoke-Compose @('exec','-T','sentinel-1','redis-cli','-p','26379','SENTINEL','get-master-addr-by-name','streamhub')
-                    Invoke-Compose @('exec','-T','sentinel-1','redis-cli','-p','26379','SENTINEL','ckquorum','streamhub')
+                    Invoke-Compose @('exec','-T','sentinel-1','redis-cli','-p','26379','SENTINEL','get-master-addr-by-name','echoroom')
+                    Invoke-Compose @('exec','-T','sentinel-1','redis-cli','-p','26379','SENTINEL','ckquorum','echoroom')
                 }
                 mq {
                     Invoke-Compose @('exec','-T','namesrv-1','sh','mqadmin','clusterList','-n','namesrv-1:9876;namesrv-2:9876')

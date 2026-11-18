@@ -1,4 +1,4 @@
-# StreamHub API 说明
+# EchoRoom API 说明
 
 ## 统一约定
 
@@ -38,7 +38,7 @@ Authorization: Bearer <accessToken>
 | POST | /api/v1/auth/ws-ticket | Bearer | 签发一次性 WebSocket Ticket，返回 ticket 和 expiresAt |
 | POST | /api/v1/auth/introspect | Bearer | 为网关校验 Token |
 
-注册、登录和刷新返回 userId、accessToken、expiresAt 和 role，并设置 HttpOnly Refresh Cookie（默认名为 streamhub_refresh，路径为 /api/v1/auth）。Access Token 默认有效 15 分钟，Refresh Token 默认有效 30 天。已签发的 Access Token 在退出后仍可用至过期。
+注册、登录和刷新返回 userId、accessToken、expiresAt 和 role，并设置 HttpOnly Refresh Cookie（默认名为 echoroom_refresh，路径为 /api/v1/auth）。Access Token 默认有效 15 分钟，Refresh Token 默认有效 30 天。已签发的 Access Token 在退出后仍可用至过期。
 
 Realtime Gateway 内部调用 Auth 的 `POST /api/v1/auth/ws-ticket/introspect`，以 `{"ticket":"..."}` 原子消费 Ticket 并校验账号状态。
 
@@ -79,7 +79,7 @@ Realtime Gateway 内部调用 Auth 的 `POST /api/v1/auth/ws-ticket/introspect`�
 
 ~~~json
 {
-  "title": "StreamHub Demo",
+  "title": "EchoRoom Demo",
   "category": "tech"
 }
 ~~~

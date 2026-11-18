@@ -19,17 +19,17 @@ def docker(*args):
 
 report = {'utc': dt.datetime.now(dt.timezone.utc).isoformat(), 'nodes': {}}
 for index in (1, 2):
-    node = f'streamhub-live-service-{index}'
+    node = f'echoroom-live-service-{index}'
     metrics = docker('exec', node, 'wget', '-qO-', 'http://localhost:8083/actuator/prometheus')
     counts = {reason: float(value) for reason, value in re.findall(
-        r'^streamhub_realtime_admission_rejected_total\{reason="([a-z_]+)"\} ([0-9.eE+-]+)$', metrics, re.MULTILINE)}
+        r'^echoroom_realtime_admission_rejected_total\{reason="([a-z_]+)"\} ([0-9.eE+-]+)$', metrics, re.MULTILINE)}
     def gauge(name):
         match = re.search(r'^' + re.escape(name) + r' ([0-9.eE+-]+)$', metrics, re.MULTILINE)
         return float(match[1]) if match else 0
     report['nodes'][node] = {
         'rejected': counts,
-        'registered': gauge('streamhub_realtime_admission_registered_total'),
-        'connections': gauge('streamhub_realtime_send_connections'),
+        'registered': gauge('echoroom_realtime_admission_registered_total'),
+        'connections': gauge('echoroom_realtime_send_connections'),
         'startedAt': docker('inspect', '--format', '{{.State.StartedAt}}', node),
         'jarSha256': docker('exec', node, 'sha256sum', '/app/app.jar').split()[0],
     }

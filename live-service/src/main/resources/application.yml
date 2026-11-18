@@ -1,10 +1,10 @@
 spring:
   application:
-    name: streamhub-live
+    name: echoroom-live
   config:
     import:
-      - optional:nacos:streamhub-shared.yaml?group=${NACOS_CONFIG_GROUP:STREAMHUB}&refreshEnabled=true
-      - optional:nacos:${spring.application.name}.yaml?group=${NACOS_CONFIG_GROUP:STREAMHUB}&refreshEnabled=true
+      - optional:nacos:echoroom-shared.yaml?group=${NACOS_CONFIG_GROUP:ECHOROOM}&refreshEnabled=true
+      - optional:nacos:${spring.application.name}.yaml?group=${NACOS_CONFIG_GROUP:ECHOROOM}&refreshEnabled=true
   cloud:
     nacos:
       discovery:
@@ -16,7 +16,7 @@ spring:
     openfeign:
       client:
         config:
-          streamhub-user:
+          echoroom-user:
             connect-timeout: ${USER_SERVICE_CONNECT_TIMEOUT_MS:1000}
             read-timeout: ${USER_SERVICE_READ_TIMEOUT_MS:2000}
             logger-level: basic
@@ -31,9 +31,9 @@ spring:
       pool:
         size: 4
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:13306/streamhub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&createDatabaseIfNotExist=true}
-    username: ${DB_USERNAME:streamhub}
-    password: ${DB_PASSWORD:streamhub}
+    url: ${DB_URL:jdbc:mysql://localhost:13306/echoroom?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&createDatabaseIfNotExist=true}
+    username: ${DB_USERNAME:echoroom}
+    password: ${DB_PASSWORD:echoroom}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: ${LIVE_DB_POOL_MAX_SIZE:20}
@@ -71,9 +71,9 @@ management:
     distribution:
       percentiles-histogram:
         http.server.requests: true
-        streamhub.realtime.send.duration: true
-        streamhub.wallet.lock.duration: true
-        streamhub.gift.transaction.duration: true
+        echoroom.realtime.send.duration: true
+        echoroom.wallet.lock.duration: true
+        echoroom.gift.transaction.duration: true
   endpoints:
     web:
       exposure:
@@ -83,10 +83,10 @@ management:
       probes:
         enabled: true
 
-streamhub:
+echoroom:
   traffic:
-    mode: ${STREAMHUB_TRAFFIC_MODE:enforce}
-    max-inflight: ${STREAMHUB_TRAFFIC_MAX_INFLIGHT:128}
+    mode: ${ECHOROOM_TRAFFIC_MODE:enforce}
+    max-inflight: ${ECHOROOM_TRAFFIC_MAX_INFLIGHT:128}
     seckill:
       user-rate: ${SECKILL_USER_RATE:2}
       user-burst: ${SECKILL_USER_BURST:4}
@@ -103,44 +103,44 @@ streamhub:
       scope-rate: ${CHAT_ROOM_RATE:100}
       scope-burst: ${CHAT_ROOM_BURST:200}
   cache:
-    enabled: ${STREAMHUB_CACHE_ENABLED:true}
-    ttl-seconds: ${STREAMHUB_CACHE_TTL_SECONDS:30}
-    max-loaders: ${STREAMHUB_CACHE_MAX_LOADERS:16}
+    enabled: ${ECHOROOM_CACHE_ENABLED:true}
+    ttl-seconds: ${ECHOROOM_CACHE_TTL_SECONDS:30}
+    max-loaders: ${ECHOROOM_CACHE_MAX_LOADERS:16}
   media:
     rtmp-publish-base: ${MEDIA_RTMP_PUBLISH_BASE:rtmp://localhost:1935/live/}
     http-flv-play-base: ${MEDIA_HTTP_FLV_PLAY_BASE:/live/}
     webrtc-play-base: ${MEDIA_WEBRTC_PLAY_BASE:/rtc/v1/whep/?app=live&stream=}
   realtime:
-    channel-mode: ${STREAMHUB_REALTIME_CHANNEL_MODE:room}
-    unsubscribe-delay-ms: ${STREAMHUB_UNSUBSCRIBE_DELAY_MS:30000}
-    max-sessions: ${STREAMHUB_MAX_SESSIONS:20000}
-    async-send: ${STREAMHUB_ASYNC_SEND:true}
-    send-threads: ${STREAMHUB_SEND_THREADS:16}
-    send-queue-messages: ${STREAMHUB_SEND_QUEUE_MESSAGES:256}
-    send-queue-bytes: ${STREAMHUB_SEND_QUEUE_BYTES:262144}
-    send-node-bytes: ${STREAMHUB_SEND_NODE_BYTES:67108864}
-    send-timeout-ms: ${STREAMHUB_SEND_TIMEOUT_MS:5000}
-    channel: ${STREAMHUB_REALTIME_CHANNEL:live:room:events}
-    node-id: ${STREAMHUB_NODE_ID:${HOSTNAME:}}
-    max-sessions-per-room: ${STREAMHUB_MAX_SESSIONS_PER_ROOM:10000}
-    max-chat-events-per-second: ${STREAMHUB_MAX_CHAT_EVENTS_PER_SECOND:1000}
-    session-timeout-ms: ${STREAMHUB_SESSION_TIMEOUT_MS:75000}
-    session-scan-interval-ms: ${STREAMHUB_SESSION_SCAN_INTERVAL_MS:15000}
-    presence-ttl-ms: ${STREAMHUB_PRESENCE_TTL_MS:90000}
+    channel-mode: ${ECHOROOM_REALTIME_CHANNEL_MODE:room}
+    unsubscribe-delay-ms: ${ECHOROOM_UNSUBSCRIBE_DELAY_MS:30000}
+    max-sessions: ${ECHOROOM_MAX_SESSIONS:20000}
+    async-send: ${ECHOROOM_ASYNC_SEND:true}
+    send-threads: ${ECHOROOM_SEND_THREADS:16}
+    send-queue-messages: ${ECHOROOM_SEND_QUEUE_MESSAGES:256}
+    send-queue-bytes: ${ECHOROOM_SEND_QUEUE_BYTES:262144}
+    send-node-bytes: ${ECHOROOM_SEND_NODE_BYTES:67108864}
+    send-timeout-ms: ${ECHOROOM_SEND_TIMEOUT_MS:5000}
+    channel: ${ECHOROOM_REALTIME_CHANNEL:live:room:events}
+    node-id: ${ECHOROOM_NODE_ID:${HOSTNAME:}}
+    max-sessions-per-room: ${ECHOROOM_MAX_SESSIONS_PER_ROOM:10000}
+    max-chat-events-per-second: ${ECHOROOM_MAX_CHAT_EVENTS_PER_SECOND:1000}
+    session-timeout-ms: ${ECHOROOM_SESSION_TIMEOUT_MS:75000}
+    session-scan-interval-ms: ${ECHOROOM_SESSION_SCAN_INTERVAL_MS:15000}
+    presence-ttl-ms: ${ECHOROOM_PRESENCE_TTL_MS:90000}
   reconciliation:
-    enabled: ${STREAMHUB_RECONCILIATION_ENABLED:true}
-    fixed-delay-ms: ${STREAMHUB_RECONCILIATION_FIXED_DELAY_MS:60000}
-    pending-age-ms: ${STREAMHUB_RECONCILIATION_PENDING_AGE_MS:30000}
-    batch-size: ${STREAMHUB_RECONCILIATION_BATCH_SIZE:100}
-    lock-key: ${STREAMHUB_RECONCILIATION_LOCK_KEY:streamhub:lock:reconciliation}
+    enabled: ${ECHOROOM_RECONCILIATION_ENABLED:true}
+    fixed-delay-ms: ${ECHOROOM_RECONCILIATION_FIXED_DELAY_MS:60000}
+    pending-age-ms: ${ECHOROOM_RECONCILIATION_PENDING_AGE_MS:30000}
+    batch-size: ${ECHOROOM_RECONCILIATION_BATCH_SIZE:100}
+    lock-key: ${ECHOROOM_RECONCILIATION_LOCK_KEY:echoroom:lock:reconciliation}
   rocketmq:
     namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:localhost:9876}
-    gift-topic: ${ROCKETMQ_GIFT_TOPIC:STREAMHUB_GIFT_ORDER}
-    gift-producer-group: ${ROCKETMQ_GIFT_PRODUCER_GROUP:streamhub-gift-producer}
-    gift-consumer-group: ${ROCKETMQ_GIFT_CONSUMER_GROUP:streamhub-gift-consumer}
-    activity-topic: ${ROCKETMQ_ACTIVITY_TOPIC:STREAMHUB_ACTIVITY_ORDER}
-    activity-producer-group: ${ROCKETMQ_ACTIVITY_PRODUCER_GROUP:streamhub-activity-producer}
-    activity-consumer-group: ${ROCKETMQ_ACTIVITY_CONSUMER_GROUP:streamhub-activity-consumer-v2}
+    gift-topic: ${ROCKETMQ_GIFT_TOPIC:ECHOROOM_GIFT_ORDER}
+    gift-producer-group: ${ROCKETMQ_GIFT_PRODUCER_GROUP:echoroom-gift-producer}
+    gift-consumer-group: ${ROCKETMQ_GIFT_CONSUMER_GROUP:echoroom-gift-consumer}
+    activity-topic: ${ROCKETMQ_ACTIVITY_TOPIC:ECHOROOM_ACTIVITY_ORDER}
+    activity-producer-group: ${ROCKETMQ_ACTIVITY_PRODUCER_GROUP:echoroom-activity-producer}
+    activity-consumer-group: ${ROCKETMQ_ACTIVITY_CONSUMER_GROUP:echoroom-activity-consumer-v2}
     timeout-delay-level: ${ROCKETMQ_ACTIVITY_TIMEOUT_DELAY_LEVEL:3}
     consume-thread-min: ${ROCKETMQ_CONSUME_THREAD_MIN:4}
     consume-thread-max: ${ROCKETMQ_CONSUME_THREAD_MAX:8}
@@ -148,7 +148,7 @@ streamhub:
     max-reconsume-times: ${ROCKETMQ_MAX_RECONSUME_TIMES:5}
     producer-retry-times: ${ROCKETMQ_PRODUCER_RETRY_TIMES:2}
     dead-letter-enabled: ${ROCKETMQ_DEAD_LETTER_ENABLED:true}
-    dead-letter-consumer-group: ${ROCKETMQ_DEAD_LETTER_CONSUMER_GROUP:streamhub-dead-letter-auditor}
+    dead-letter-consumer-group: ${ROCKETMQ_DEAD_LETTER_CONSUMER_GROUP:echoroom-dead-letter-auditor}
     outbox-enabled: ${ROCKETMQ_OUTBOX_ENABLED:true}
     outbox-batch-size: ${ROCKETMQ_OUTBOX_BATCH_SIZE:100}
     outbox-max-attempts: ${ROCKETMQ_OUTBOX_MAX_ATTEMPTS:20}
@@ -166,5 +166,5 @@ spring:
   data:
     redis:
       sentinel:
-        master: ${REDIS_SENTINEL_MASTER:streamhub}
+        master: ${REDIS_SENTINEL_MASTER:echoroom}
         nodes: ${REDIS_SENTINEL_NODES:sentinel-1:26379,sentinel-2:26379,sentinel-3:26379}

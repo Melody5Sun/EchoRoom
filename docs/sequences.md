@@ -1,4 +1,4 @@
-# StreamHub 时序图
+# EchoRoom 时序图
 
 ## WebSocket 弹幕和跨节点广播
 

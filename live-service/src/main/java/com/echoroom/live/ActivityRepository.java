@@ -1,0 +1,142 @@
+package com.echoroom.live;
+
+import java.sql.PreparedStatement;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class ActivityRepository {
+    private final JdbcTemplate jdbcTemplate;
+    private final MetadataCache cache;
+
+    public ActivityRepository(JdbcTemplate jdbcTemplate) { this.jdbcTemplate = jdbcTemplate; this.cache = null; }
+    @org.springframework.beans.factory.annotation.Autowired
+    public ActivityRepository(JdbcTemplate jdbcTemplate, MetadataCache cache) { this.jdbcTemplate = jdbcTemplate; this.cache = cache; }
+    public Optional<Activity> findCachedById(long activityId) {
+        return cache == null ? findById(activityId) : cache.get("metadata:activity:" + activityId, Activity.class, () -> findById(activityId));
+    }
+    public void invalidate(long activityId) { if (cache != null) cache.invalidate("metadata:activity:" + activityId); }
+
+    public long create(
+            long roomId,
+            String name,
+            int stock,
+            long unitPrice,
+            Instant startsAt,
+            Instant endsAt) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement statement = connection.prepareStatement(
+                    "INSERT INTO activity(room_id, name, stock, unit_price, starts_at, ends_at) "
+                            + "VALUES (?, ?, ?, ?, ?, ?)",
+                    Statement.RETURN_GENERATED_KEYS);
+            statement.setLong(1, roomId);
+            statement.setString(2, name);
+            statement.setInt(3, stock);
+            statement.setLong(4, unitPrice);
+            statement.setTimestamp(5, Timestamp.from(startsAt));
+            statement.setTimestamp(6, Timestamp.from(endsAt));
+            return statement;
+        }, keyHolder);
+        Number key = keyHolder.getKey();
+        if (key == null) {
+            throw new IllegalStateException("创建活动后没有返回活动 ID");
+        }
+        return key.longValue();
+    }
+
+    public Optional<Activity> findById(long activityId) {
+        return query("SELECT id, room_id, name, stock, unit_price, status, starts_at, ends_at, "
+                + "created_at, updated_at FROM activity WHERE id = ?", activityId).stream().findFirst();
+    }
+
+    public List<Activity> findActive() {
+        return query("SELECT id, room_id, name, stock, unit_price, status, starts_at, ends_at, "
+                + "created_at, updated_at FROM activity WHERE status = 'ACTIVE' ORDER BY id");
+    }
+
+    public List<Activity> findByRoomId(long roomId) {
+        return query("SELECT id, room_id, name, stock, unit_price, status, starts_at, ends_at, "
+                + "created_at, updated_at FROM activity WHERE room_id = ? ORDER BY id DESC", roomId);
+    }
+
+    public List<Activity> page(String status, int page, int pageSize) {
+        int safePage = Math.max(1, page);
+        int safePageSize = Math.max(1, Math.min(pageSize, 100));
+        String condition = status == null || status.isBlank() ? "" : " WHERE status = ?";
+        List<Activity> values = condition.isEmpty()
+                ? query("SELECT id, room_id, name, stock, unit_price, status, starts_at, ends_at, "
+                        + "created_at, updated_at FROM activity ORDER BY id DESC LIMIT ? OFFSET ?",
+                        safePageSize, (safePage - 1) * safePageSize)
+                : query("SELECT id, room_id, name, stock, unit_price, status, starts_at, ends_at, "
+                        + "created_at, updated_at FROM activity WHERE status = ? ORDER BY id DESC LIMIT ? OFFSET ?",
+                        status.trim(), safePageSize, (safePage - 1) * safePageSize);
+        return values;
+    }
+
+    public long count(String status) {
+        Long count = status == null || status.isBlank()
+                ? jdbcTemplate.queryForObject("SELECT COUNT(*) FROM activity", Long.class)
+                : jdbcTemplate.queryForObject("SELECT COUNT(*) FROM activity WHERE status = ?", Long.class, status.trim());
+        return count == null ? 0 : count;
+    }
+
+    public boolean reserve(long id) {
+        return jdbcTemplate.update("UPDATE activity SET reserved_count = reserved_count + 1 WHERE id = ? "
+            + "AND status = 'ACTIVE' AND starts_at <= CURRENT_TIMESTAMP(3) AND ends_at > CURRENT_TIMESTAMP(3) "
+            + "AND reserved_count < stock", id) == 1;
+    }
+    public void release(long id) {
+        if (jdbcTemplate.update("UPDATE activity SET reserved_count = reserved_count - 1 WHERE id = ? AND reserved_count > 0", id) != 1)
+            throw new IllegalStateException("activity reservation counter inconsistent: " + id);
+    }
+    public void lock(long id) { jdbcTemplate.queryForObject("SELECT id FROM activity WHERE id = ? FOR UPDATE", Long.class, id); }
+
+    public boolean activate(long activityId) {
+        invalidate(activityId);
+        return jdbcTemplate.update(
+                "UPDATE activity SET status = 'ACTIVE', updated_at = CURRENT_TIMESTAMP(3) "
+                        + "WHERE id = ? AND status = 'DRAFT'",
+                activityId) == 1;
+    }
+
+    public boolean stop(long activityId) {
+        invalidate(activityId);
+        return jdbcTemplate.update(
+                "UPDATE activity SET status = 'STOPPED', updated_at = CURRENT_TIMESTAMP(3) "
+                        + "WHERE id = ? AND status IN ('DRAFT', 'ACTIVE')",
+                activityId) == 1;
+    }
+
+    public void appendAudit(long operatorId, String action, String targetType, String targetId, String reason) {
+        jdbcTemplate.update(
+                "INSERT INTO ops_audit_log(operator_id, action, target_type, target_id, reason) VALUES (?, ?, ?, ?, ?)",
+                operatorId,
+                action,
+                targetType,
+                targetId,
+                reason);
+    }
+
+    private List<Activity> query(String sql, Object... args) {
+        return jdbcTemplate.query(sql, (resultSet, rowNum) -> new Activity(
+                resultSet.getLong("id"),
+                resultSet.getLong("room_id"),
+                resultSet.getString("name"),
+                resultSet.getInt("stock"),
+                resultSet.getLong("unit_price"),
+                resultSet.getString("status"),
+                resultSet.getTimestamp("starts_at").toInstant(),
+                resultSet.getTimestamp("ends_at").toInstant(),
+                resultSet.getTimestamp("created_at").toInstant(),
+                resultSet.getTimestamp("updated_at").toInstant()), args);
+    }
+}

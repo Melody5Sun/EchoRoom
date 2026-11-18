@@ -1,4 +1,4 @@
-name: streamhub-ha
+name: echoroom-ha
 services:
   mysql-1:
     image: mysql:8.4
@@ -26,7 +26,7 @@ services:
     profiles:
     - mysql
     networks:
-    - streamhub
+    - echoroom
     restart: unless-stopped
   mysql-2:
     image: mysql:8.4
@@ -54,7 +54,7 @@ services:
     profiles:
     - mysql
     networks:
-    - streamhub
+    - echoroom
     restart: unless-stopped
   mysql-3:
     image: mysql:8.4
@@ -82,7 +82,7 @@ services:
     profiles:
     - mysql
     networks:
-    - streamhub
+    - echoroom
     restart: unless-stopped
   mysql-init:
     image: mysql:8.4
@@ -107,7 +107,7 @@ services:
     profiles:
     - mysql
     networks:
-    - streamhub
+    - echoroom
   mysql-router:
     restart: unless-stopped
     image: container-registry.oracle.com/mysql/community-router:8.4
@@ -125,7 +125,7 @@ services:
     profiles:
     - mysql
     networks:
-    - streamhub
+    - echoroom
   redis-1:
     restart: unless-stopped
     image: redis:7.4-alpine
@@ -151,7 +151,7 @@ services:
     profiles:
     - redis
     networks:
-      streamhub:
+      echoroom:
         ipv4_address: ${HA_NETWORK_PREFIX:-172.30.240}.11
   redis-2:
     restart: unless-stopped
@@ -181,7 +181,7 @@ services:
     profiles:
     - redis
     networks:
-      streamhub:
+      echoroom:
         ipv4_address: ${HA_NETWORK_PREFIX:-172.30.240}.12
   redis-3:
     restart: unless-stopped
@@ -211,7 +211,7 @@ services:
     profiles:
     - redis
     networks:
-      streamhub:
+      echoroom:
         ipv4_address: ${HA_NETWORK_PREFIX:-172.30.240}.13
   sentinel-1:
     restart: unless-stopped
@@ -242,7 +242,7 @@ services:
     profiles:
     - redis
     networks:
-      streamhub:
+      echoroom:
         ipv4_address: ${HA_NETWORK_PREFIX:-172.30.240}.21
     environment:
       INITIAL_MASTER_IP: ${HA_NETWORK_PREFIX:-172.30.240}.11
@@ -276,7 +276,7 @@ services:
     profiles:
     - redis
     networks:
-      streamhub:
+      echoroom:
         ipv4_address: ${HA_NETWORK_PREFIX:-172.30.240}.22
     environment:
       INITIAL_MASTER_IP: ${HA_NETWORK_PREFIX:-172.30.240}.11
@@ -310,7 +310,7 @@ services:
     profiles:
     - redis
     networks:
-      streamhub:
+      echoroom:
         ipv4_address: ${HA_NETWORK_PREFIX:-172.30.240}.23
     environment:
       INITIAL_MASTER_IP: ${HA_NETWORK_PREFIX:-172.30.240}.11
@@ -326,7 +326,7 @@ services:
     profiles:
     - mq
     networks:
-    - streamhub
+    - echoroom
   namesrv-2:
     restart: unless-stopped
     image: apache/rocketmq:5.3.1
@@ -338,7 +338,7 @@ services:
     profiles:
     - mq
     networks:
-    - streamhub
+    - echoroom
   controller-1:
     restart: unless-stopped
     image: apache/rocketmq:5.3.1
@@ -357,7 +357,7 @@ services:
     profiles:
     - mq
     networks:
-    - streamhub
+    - echoroom
   controller-2:
     restart: unless-stopped
     image: apache/rocketmq:5.3.1
@@ -376,7 +376,7 @@ services:
     profiles:
     - mq
     networks:
-    - streamhub
+    - echoroom
   controller-3:
     restart: unless-stopped
     image: apache/rocketmq:5.3.1
@@ -395,7 +395,7 @@ services:
     profiles:
     - mq
     networks:
-    - streamhub
+    - echoroom
   broker-1:
     restart: unless-stopped
     image: apache/rocketmq:5.3.1
@@ -420,7 +420,7 @@ services:
     profiles:
     - mq
     networks:
-    - streamhub
+    - echoroom
   broker-2:
     restart: unless-stopped
     image: apache/rocketmq:5.3.1
@@ -445,7 +445,7 @@ services:
     profiles:
     - mq
     networks:
-    - streamhub
+    - echoroom
   nacos-schema:
     image: nacos/nacos-server:v2.4.3
     user: 0:0
@@ -458,7 +458,7 @@ services:
     profiles:
     - nacos
     networks:
-    - streamhub
+    - echoroom
   nacos-db-init:
     image: mysql:8.4
     entrypoint:
@@ -483,7 +483,7 @@ services:
     profiles:
     - nacos
     networks:
-    - streamhub
+    - echoroom
   nacos-1:
     restart: unless-stopped
     image: nacos/nacos-server:v2.4.3
@@ -517,7 +517,7 @@ services:
     profiles:
     - nacos
     networks:
-    - streamhub
+    - echoroom
   nacos-2:
     restart: unless-stopped
     image: nacos/nacos-server:v2.4.3
@@ -551,7 +551,7 @@ services:
     profiles:
     - nacos
     networks:
-    - streamhub
+    - echoroom
   nacos-3:
     restart: unless-stopped
     image: nacos/nacos-server:v2.4.3
@@ -585,7 +585,7 @@ services:
     profiles:
     - nacos
     networks:
-    - streamhub
+    - echoroom
   srs-1:
     restart: unless-stopped
     image: ossrs/srs:6
@@ -601,7 +601,7 @@ services:
     profiles:
     - media
     networks:
-    - streamhub
+    - echoroom
     environment:
       CANDIDATE: ${MEDIA_PUBLIC_IP:-127.0.0.1}
       SRS_RTC_SERVER_LISTEN: '18001'
@@ -620,7 +620,7 @@ services:
     profiles:
     - media
     networks:
-    - streamhub
+    - echoroom
     environment:
       CANDIDATE: ${MEDIA_PUBLIC_IP:-127.0.0.1}
       SRS_RTC_SERVER_LISTEN: '18002'
@@ -638,7 +638,7 @@ services:
     profiles:
     - media
     networks:
-    - streamhub
+    - echoroom
 volumes:
   mysql-1: {}
   mysql-2: {}
@@ -656,8 +656,8 @@ volumes:
   broker-2: {}
   nacos-schema: {}
 networks:
-  streamhub:
-    name: streamhub-ha
+  echoroom:
+    name: echoroom-ha
     ipam:
       config:
       - subnet: ${HA_NETWORK_PREFIX:-172.30.240}.0/24

@@ -1,4 +1,4 @@
-# StreamHub 架构说明
+# EchoRoom 架构说明
 
 ## 运行边界
 
@@ -52,8 +52,8 @@ Java 服务只负责控制面、互动消息和交易业务。观看规模的扩
 | activity:{activityId}:recovering | String | 库存重建期间的保护标记 |
 | live:room:&lt;roomId&gt;:broadcast:rate | String | 普通弹幕秒级广播保护 |
 | moderation:sensitive-words | Set | 活跃敏感词缓存 |
-| streamhub:auth:ws-ticket:&lt;sha256&gt; | String | 短时一次性 WebSocket Ticket |
-| streamhub:lock:reconciliation | String | 多实例对账任务锁 |
+| echoroom:auth:ws-ticket:&lt;sha256&gt; | String | 短时一次性 WebSocket Ticket |
+| echoroom:lock:reconciliation | String | 多实例对账任务锁 |
 | live:room:events:{roomId} | Pub/Sub | 默认房间频道，承载 Chat、Gift、Activity 实时事件 |
 
 表中在线状态和活动 Key 的花括号是 Key 的实际组成部分，不只是文档占位符。这样同一房间或同一活动的多 Key Lua 操作在 Redis Cluster 中会落到同一个 Hash Slot。
@@ -68,8 +68,8 @@ Redis Pub/Sub 只负责在线广播。断线客户端必须用 MySQL 历史弹�
 
 所有服务暴露 /actuator/prometheus。Live 服务额外记录：
 
-- streamhub_realtime_broadcast_published_total
-- streamhub_realtime_broadcast_dropped_total，标签 type=chat
-- streamhub_realtime_broadcast_local_fallback_total
+- echoroom_realtime_broadcast_published_total
+- echoroom_realtime_broadcast_dropped_total，标签 type=chat
+- echoroom_realtime_broadcast_local_fallback_total
 
 Prometheus 和 Grafana 的本地编排位于 docker-compose.yml，配置位于 infra/prometheus 和 infra/grafana。

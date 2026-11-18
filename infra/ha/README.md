@@ -1,6 +1,6 @@
 # 本地高可用演练
 
-本目录使用独立项目 `streamhub-ha`、独立数据卷和网络。需要运行中的 Docker Linux 引擎；完整组合建议至少为 Docker 分配 8 CPU、16 GiB 内存。单机容器只能验证进程故障，不能证明宿主机容灾。此配置的本地口令、Nacos 免鉴权和 Broker root 用户不用于生产。
+本目录使用独立项目 `echoroom-ha`、独立数据卷和网络。需要运行中的 Docker Linux 引擎；完整组合建议至少为 Docker 分配 8 CPU、16 GiB 内存。单机容器只能验证进程故障，不能证明宿主机容灾。此配置的本地口令、Nacos 免鉴权和 Broker root 用户不用于生产。
 
 ## 启动与连接
 
@@ -15,7 +15,7 @@ docker compose -f docker-compose.yml -f docker-compose.apps-ha.yml up -d --build
   --scale gateway-service=2 --scale realtime-gateway=2 --scale live-service=2
 ```
 
-基础设施先健康，再启动应用。首次 MySQL 初始化使用 MySQL Shell 创建三节点单主集群，并将**新建的隔离副本卷**通过 Clone 加入集群。不要把现有生产卷挂入此配置。Router 提供宿主机 16446 和容器 6446 端口；客户端数据库为 streamhub。
+基础设施先健康，再启动应用。首次 MySQL 初始化使用 MySQL Shell 创建三节点单主集群，并将**新建的隔离副本卷**通过 Clone 加入集群。不要把现有生产卷挂入此配置。Router 提供宿主机 16446 和容器 6446 端口；客户端数据库为 echoroom。
 
 Redis 为一主两副本、三 Sentinel，应用通过 `redis-sentinel` profile 连接 Sentinel，不能在切换后继续硬编码 redis-1。房间订阅由监听容器恢复，活动定时对账恢复库存派生数据。故障期间交易和新增弹幕写入拒绝，已建立连接的心跳及本地事件发送继续。
 
@@ -35,9 +35,9 @@ Nacos 初始化从固定版本 `nacos/nacos-server:v2.4.3` 镜像中复制官方
 ./infra/ha/ha.ps1 -Action verify -Component redis
 ./infra/ha/ha.ps1 -Action recover -Node redis-1
 # MySQL/MQ/Nacos/SRS 同样使用实际节点名；不要假定编号 1 永远是主。
-Get-Content infra/ha/verify-data.sql -Raw | docker compose -p streamhub-ha `
+Get-Content infra/ha/verify-data.sql -Raw | docker compose -p echoroom-ha `
   -f docker-compose.infra-ha.yml --profile '*' exec -T mysql-2 `
-  sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot streamhub'
+  sh -ec 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot echoroom'
 ```
 
 verify 展示组件状态，不能代替数据一致性验收。SQL 的前五个结果集必须为空；另需比较故障前后的订单状态、账本及 Outbox 汇总，对每笔测试订单验证至终态。Redis 还需通过应用探测跨实例限流、Presence、跨节点广播和历史补偿。检查重启 Redis 节点已成为当前主的副本，不能直接向旧主写入。
@@ -68,7 +68,7 @@ FLV 代理可在连接错误后使用备用源站；现有长连接需要重连�
 ## 可重复的本机验证
 
 - 使用 `scripts/test-docker.ps1` 运行集成门禁。Docker 29 使用兼容 API 1.44，并从活动 context 读取 endpoint；报告必须新生成且零跳过。Java 25 可通过 JvmArgs 传入显式 Mockito agent 及 Byte Buddy 兼容参数，推荐 Java 17。
-- `redis-failover.ps1`、`mysql-failover.ps1` 自动识别本演练项目的主节点，验证切换、写入及旧节点回归。MySQL 探针使用独立 streamhub_ha_drill 库，不污染 Flyway 业务 schema。
+- `redis-failover.ps1`、`mysql-failover.ps1` 自动识别本演练项目的主节点，验证切换、写入及旧节点回归。MySQL 探针使用独立 echoroom_ha_drill 库，不污染 Flyway 业务 schema。
 - Redis/Sentinel 使用隔离子网的固定地址，避免 Docker 停止节点时 DNS 查询阻塞 Sentinel。默认子网 172.30.240.0/24，可用 HA_NETWORK_PREFIX 更换；不得与现有网络重叠。
 - 动态容器地址池限定为该子网的 .128/25，Redis/Sentinel 固定地址位于低地址段，避免重启时动态节点占用保留地址。已有旧网络必须停止本项目容器、保留数据卷并重建网络后才能应用 ip_range；仅重启容器不会改变网络池。
 - MySQL Shell 以 --no-defaults 启动；Clone 重启由容器 restart policy 接管。已有 metadata 的完全停机恢复使用 AdminAPI 比较 GTID，禁止 force 或删除 metadata；再次初始化会连接当前可写主。

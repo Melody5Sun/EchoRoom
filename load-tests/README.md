@@ -72,11 +72,11 @@ run-capacity.ps1 执行 5 分钟预热、每级 10 分钟、每级约增加 25%�
 
 准备隔离数据可运行 `python load-tests/prepare-fixtures.py --users 20`；它通过真实网关创建测试账户、测试余额、直播间和活动，凭据写入被忽略的 results/fixture.json。禁止指向生产。`run-capacity.ps1 -Smoke -Steps 1` 仅执行 30s/60s/120s 的短时检查，manifest 标记 smoke=true，不构成容量结论。完整验收仍使用默认 5m/10m/30m。
 
-隔离 HA 环境及测试数据就绪后，运行 `python load-tests/ha-business-drill.py`，依次停止并恢复当前 Broker 主节点、Controller 主节点、一个 NameServer 和一个 Nacos，通过网关订单、Outbox 及数据库流水核验业务效果。脚本只操作 `streamhub-ha` 项目，依赖 Docker CLI 和 Python 标准库。执行期间不要对同一测试钱包发起其他交易；输出位于 results/ha-business-drill.json。各步骤超时即失败，不能把失败输出当作验收记录。
+隔离 HA 环境及测试数据就绪后，运行 `python load-tests/ha-business-drill.py`，依次停止并恢复当前 Broker 主节点、Controller 主节点、一个 NameServer 和一个 Nacos，通过网关订单、Outbox 及数据库流水核验业务效果。脚本只操作 `echoroom-ha` 项目，依赖 Docker CLI 和 Python 标准库。执行期间不要对同一测试钱包发起其他交易；输出位于 results/ha-business-drill.json。各步骤超时即失败，不能把失败输出当作验收记录。
 
 媒体诊断使用 `node load-tests/media-failover.mjs`，依赖前端 Playwright、可用的 Chromium 和 FFmpeg；可用 CHROMIUM_PATH、FFMPEG_PATH 指定本机可执行文件。它向隔离 SRS 推送合成画面，实际浏览器解码后停止 srs-1，再向备用源推流并检查画面是否继续前进，最后恢复 srs-1。报告写入 results/media-failover.json，失败保留最后播放器状态和媒体 HTTP 状态。实际媒体恢复记录见 [验证记录](../docs/high-traffic-verification.md)，不代表媒体会话无缝迁移。请勿在有其他推流者使用同一测试直播间时运行。
 
-聊天前端故障补偿演练：在其他压测连接全部退出、fixture 凭据仍有效时，运行 `node load-tests/browser-chat-failover.mjs`。可用 CHROMIUM_PATH 指定 Edge/Chromium。脚本创建隔离房间和浏览器账号，通过真实 HttpOnly Cookie 恢复登录，定位浏览器所在 Live，并把独立发布者放在另一节点；随后重启浏览器所在节点，核验实际 ChatPanel 重连、历史补偿、消息去重及恢复后 UI 发言。发布结束后检查无观众节点的退订。脚本只重启两个已知 StreamHub Live 中的一个，finally 恢复该节点并关闭本次浏览器/发布端，结果写入 results/browser-chat-failover.json。它是功能演练，不是延迟或容量测试。
+聊天前端故障补偿演练：在其他压测连接全部退出、fixture 凭据仍有效时，运行 `node load-tests/browser-chat-failover.mjs`。可用 CHROMIUM_PATH 指定 Edge/Chromium。脚本创建隔离房间和浏览器账号，通过真实 HttpOnly Cookie 恢复登录，定位浏览器所在 Live，并把独立发布者放在另一节点；随后重启浏览器所在节点，核验实际 ChatPanel 重连、历史补偿、消息去重及恢复后 UI 发言。发布结束后检查无观众节点的退订。脚本只重启两个已知 EchoRoom Live 中的一个，finally 恢复该节点并关闭本次浏览器/发布端，结果写入 results/browser-chat-failover.json。它是功能演练，不是延迟或容量测试。
 
 GC 存活对象验证须在负载结束后进行，不能与 SLO 计时混用，步骤见 [JVM 诊断](../docs/jvm-memory-diagnostics.md)。慢端 SLOW_MAX_LIFETIME_MS 为可选的客户端主动关闭看门狗；开启时记录它验证的是客户端重连路径，不能把主动关闭算成服务端背压隔离。
 
@@ -137,7 +137,7 @@ prepare-fixtures.py 新增 --stock、--activities、--fund-amount、--account-de
 
 ## MySQL 在途订单故障
 
-空闲时运行 `python load-tests/mysql-inflight-recovery.py --fixture <ignored-funded-gift.json>`。脚本只连接 localhost 的 streamhub-ha，先持有测试发送方的钱包锁，再创建 PENDING 送礼订单。确认消费事务实际等待该锁后，调用既有主节点故障脚本。要求锁连接在故障时断开、订单恢复为 SUCCESS、原身份重放仍只有两条唯一流水、双方余额与金额精确一致。故障脚本负责在 finally 中恢复原节点。测试期间暂停其他负载，保留 JSON 和基础设施日志。
+空闲时运行 `python load-tests/mysql-inflight-recovery.py --fixture <ignored-funded-gift.json>`。脚本只连接 localhost 的 echoroom-ha，先持有测试发送方的钱包锁，再创建 PENDING 送礼订单。确认消费事务实际等待该锁后，调用既有主节点故障脚本。要求锁连接在故障时断开、订单恢复为 SUCCESS、原身份重放仍只有两条唯一流水、双方余额与金额精确一致。故障脚本负责在 finally 中恢复原节点。测试期间暂停其他负载，保留 JSON 和基础设施日志。
 
 ## 旧二进制回退
 

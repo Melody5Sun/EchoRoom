@@ -11,7 +11,7 @@ const hasCover = computed(() => Boolean(props.room.coverUrl))
   <RouterLink :to="`/live/${room.id}`" class="room-card surface">
     <div class="room-cover" :class="{ 'room-cover-placeholder': !hasCover }" :style="hasCover ? { backgroundImage: `url(${room.coverUrl})` } : undefined">
       <div class="cover-gradient" />
-      <span v-if="!hasCover" class="placeholder-label">STREAMHUB</span>
+      <span v-if="!hasCover" class="placeholder-label">ECHOROOM</span>
       <NTag v-if="room.status === 'LIVE'" size="small" type="success" round class="live-tag">直播中</NTag>
       <span class="room-online"><span class="online-dot" /> {{ room.onlineCount || 0 }} 人在线</span>
     </div>
