@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: streamhub-user
+  config:
+    import:
+      - optional:nacos:streamhub-shared.yaml?group=${NACOS_CONFIG_GROUP:STREAMHUB}&refreshEnabled=true
+      - optional:nacos:${spring.application.name}.yaml?group=${NACOS_CONFIG_GROUP:STREAMHUB}&refreshEnabled=true
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        enabled: ${NACOS_DISCOVERY_ENABLED:true}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        enabled: ${NACOS_CONFIG_ENABLED:true}
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:13306/streamhub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&createDatabaseIfNotExist=true}
+    username: ${DB_USERNAME:streamhub}
+    password: ${DB_PASSWORD:streamhub}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${USER_DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${USER_DB_POOL_MIN_IDLE:2}
+      connection-timeout: ${DB_POOL_CONNECTION_TIMEOUT_MS:3000}
+      validation-timeout: ${DB_POOL_VALIDATION_TIMEOUT_MS:1000}
+      max-lifetime: ${DB_POOL_MAX_LIFETIME_MS:1800000}
+      keepalive-time: ${DB_POOL_KEEPALIVE_TIME_MS:300000}
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    locations: classpath:db/migration
+
+server:
+  port: ${SERVER_PORT:8082}
+
+management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        streamhub.realtime.send.duration: true
+        streamhub.wallet.lock.duration: true
+        streamhub.gift.transaction.duration: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+---
+spring:
+  config:
+    activate:
+      on-profile: redis-sentinel
+  data:
+    redis:
+      sentinel:
+        master: ${REDIS_SENTINEL_MASTER:streamhub}
+        nodes: ${REDIS_SENTINEL_NODES:sentinel-1:26379,sentinel-2:26379,sentinel-3:26379}

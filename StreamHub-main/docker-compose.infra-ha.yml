@@ -1,0 +1,664 @@
+name: streamhub-ha
+services:
+  mysql-1:
+    image: mysql:8.4
+    hostname: mysql-1
+    environment:
+      MYSQL_ROOT_PASSWORD: ${HA_MYSQL_ROOT_PASSWORD:-ha-local-root}
+      MYSQL_ROOT_HOST: '%'
+    command:
+    - --server-id=1
+    - --gtid-mode=ON
+    - --enforce-gtid-consistency=ON
+    - --log-bin=mysql-bin
+    - --binlog-format=ROW
+    - --report-host=mysql-1
+    - --max-connections=200
+    volumes:
+    - mysql-1:/var/lib/mysql
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysqladmin ping -uroot -p$$MYSQL_ROOT_PASSWORD --silent
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    profiles:
+    - mysql
+    networks:
+    - streamhub
+    restart: unless-stopped
+  mysql-2:
+    image: mysql:8.4
+    hostname: mysql-2
+    environment:
+      MYSQL_ROOT_PASSWORD: ${HA_MYSQL_ROOT_PASSWORD:-ha-local-root}
+      MYSQL_ROOT_HOST: '%'
+    command:
+    - --server-id=2
+    - --gtid-mode=ON
+    - --enforce-gtid-consistency=ON
+    - --log-bin=mysql-bin
+    - --binlog-format=ROW
+    - --report-host=mysql-2
+    - --max-connections=200
+    volumes:
+    - mysql-2:/var/lib/mysql
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysqladmin ping -uroot -p$$MYSQL_ROOT_PASSWORD --silent
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    profiles:
+    - mysql
+    networks:
+    - streamhub
+    restart: unless-stopped
+  mysql-3:
+    image: mysql:8.4
+    hostname: mysql-3
+    environment:
+      MYSQL_ROOT_PASSWORD: ${HA_MYSQL_ROOT_PASSWORD:-ha-local-root}
+      MYSQL_ROOT_HOST: '%'
+    command:
+    - --server-id=3
+    - --gtid-mode=ON
+    - --enforce-gtid-consistency=ON
+    - --log-bin=mysql-bin
+    - --binlog-format=ROW
+    - --report-host=mysql-3
+    - --max-connections=200
+    volumes:
+    - mysql-3:/var/lib/mysql
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysqladmin ping -uroot -p$$MYSQL_ROOT_PASSWORD --silent
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    profiles:
+    - mysql
+    networks:
+    - streamhub
+    restart: unless-stopped
+  mysql-init:
+    image: mysql:8.4
+    entrypoint:
+    - mysqlsh
+    - --no-defaults
+    - --js
+    - --file
+    - /bootstrap/mysql-cluster.js
+    environment:
+      HA_MYSQL_ROOT_PASSWORD: ${HA_MYSQL_ROOT_PASSWORD:-ha-local-root}
+      HA_DB_PASSWORD: ${HA_DB_PASSWORD:-ha-local-app}
+    volumes:
+    - ./infra/ha:/bootstrap:ro
+    depends_on:
+      mysql-1:
+        condition: service_healthy
+      mysql-2:
+        condition: service_healthy
+      mysql-3:
+        condition: service_healthy
+    profiles:
+    - mysql
+    networks:
+    - streamhub
+  mysql-router:
+    restart: unless-stopped
+    image: container-registry.oracle.com/mysql/community-router:8.4
+    environment:
+      MYSQL_HOST: mysql-1
+      MYSQL_PORT: '3306'
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ${HA_MYSQL_ROOT_PASSWORD:-ha-local-root}
+      MYSQL_INNODB_CLUSTER_MEMBERS: '3'
+    depends_on:
+      mysql-init:
+        condition: service_completed_successfully
+    ports:
+    - 16446:6446
+    profiles:
+    - mysql
+    networks:
+    - streamhub
+  redis-1:
+    restart: unless-stopped
+    image: redis:7.4-alpine
+    hostname: redis-1
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    - --replica-announce-ip
+    - ${HA_NETWORK_PREFIX:-172.30.240}.11
+    - --replica-announce-port
+    - '6379'
+    volumes:
+    - redis-1:/data
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    profiles:
+    - redis
+    networks:
+      streamhub:
+        ipv4_address: ${HA_NETWORK_PREFIX:-172.30.240}.11
+  redis-2:
+    restart: unless-stopped
+    image: redis:7.4-alpine
+    hostname: redis-2
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    - --replica-announce-ip
+    - ${HA_NETWORK_PREFIX:-172.30.240}.12
+    - --replica-announce-port
+    - '6379'
+    - --replicaof
+    - redis-1
+    - '6379'
+    volumes:
+    - redis-2:/data
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    profiles:
+    - redis
+    networks:
+      streamhub:
+        ipv4_address: ${HA_NETWORK_PREFIX:-172.30.240}.12
+  redis-3:
+    restart: unless-stopped
+    image: redis:7.4-alpine
+    hostname: redis-3
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    - --replica-announce-ip
+    - ${HA_NETWORK_PREFIX:-172.30.240}.13
+    - --replica-announce-port
+    - '6379'
+    - --replicaof
+    - redis-1
+    - '6379'
+    volumes:
+    - redis-3:/data
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    profiles:
+    - redis
+    networks:
+      streamhub:
+        ipv4_address: ${HA_NETWORK_PREFIX:-172.30.240}.13
+  sentinel-1:
+    restart: unless-stopped
+    image: redis:7.4-alpine
+    hostname: sentinel-1
+    command:
+    - sh
+    - -ec
+    - if [ ! -f /data/sentinel.conf ]; then sed -e "s/__MASTER_IP__/$$INITIAL_MASTER_IP/g"
+      -e "s/__SENTINEL_IP__/$$SENTINEL_IP/g" /config/sentinel.conf > /data/sentinel.conf;
+      fi; exec redis-server /data/sentinel.conf --sentinel
+    volumes:
+    - sentinel-1:/data
+    - ./infra/ha/sentinel-1.conf:/config/sentinel.conf:ro
+    depends_on:
+      redis-1:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - -p
+      - '26379'
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    profiles:
+    - redis
+    networks:
+      streamhub:
+        ipv4_address: ${HA_NETWORK_PREFIX:-172.30.240}.21
+    environment:
+      INITIAL_MASTER_IP: ${HA_NETWORK_PREFIX:-172.30.240}.11
+      SENTINEL_IP: ${HA_NETWORK_PREFIX:-172.30.240}.21
+  sentinel-2:
+    restart: unless-stopped
+    image: redis:7.4-alpine
+    hostname: sentinel-2
+    command:
+    - sh
+    - -ec
+    - if [ ! -f /data/sentinel.conf ]; then sed -e "s/__MASTER_IP__/$$INITIAL_MASTER_IP/g"
+      -e "s/__SENTINEL_IP__/$$SENTINEL_IP/g" /config/sentinel.conf > /data/sentinel.conf;
+      fi; exec redis-server /data/sentinel.conf --sentinel
+    volumes:
+    - sentinel-2:/data
+    - ./infra/ha/sentinel-2.conf:/config/sentinel.conf:ro
+    depends_on:
+      redis-1:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - -p
+      - '26379'
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    profiles:
+    - redis
+    networks:
+      streamhub:
+        ipv4_address: ${HA_NETWORK_PREFIX:-172.30.240}.22
+    environment:
+      INITIAL_MASTER_IP: ${HA_NETWORK_PREFIX:-172.30.240}.11
+      SENTINEL_IP: ${HA_NETWORK_PREFIX:-172.30.240}.22
+  sentinel-3:
+    restart: unless-stopped
+    image: redis:7.4-alpine
+    hostname: sentinel-3
+    command:
+    - sh
+    - -ec
+    - if [ ! -f /data/sentinel.conf ]; then sed -e "s/__MASTER_IP__/$$INITIAL_MASTER_IP/g"
+      -e "s/__SENTINEL_IP__/$$SENTINEL_IP/g" /config/sentinel.conf > /data/sentinel.conf;
+      fi; exec redis-server /data/sentinel.conf --sentinel
+    volumes:
+    - sentinel-3:/data
+    - ./infra/ha/sentinel-3.conf:/config/sentinel.conf:ro
+    depends_on:
+      redis-1:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - -p
+      - '26379'
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    profiles:
+    - redis
+    networks:
+      streamhub:
+        ipv4_address: ${HA_NETWORK_PREFIX:-172.30.240}.23
+    environment:
+      INITIAL_MASTER_IP: ${HA_NETWORK_PREFIX:-172.30.240}.11
+      SENTINEL_IP: ${HA_NETWORK_PREFIX:-172.30.240}.23
+  namesrv-1:
+    restart: unless-stopped
+    image: apache/rocketmq:5.3.1
+    command:
+    - sh
+    - mqnamesrv
+    environment:
+      JAVA_OPT_EXT: -Xms256m -Xmx256m
+    profiles:
+    - mq
+    networks:
+    - streamhub
+  namesrv-2:
+    restart: unless-stopped
+    image: apache/rocketmq:5.3.1
+    command:
+    - sh
+    - mqnamesrv
+    environment:
+      JAVA_OPT_EXT: -Xms256m -Xmx256m
+    profiles:
+    - mq
+    networks:
+    - streamhub
+  controller-1:
+    restart: unless-stopped
+    image: apache/rocketmq:5.3.1
+    hostname: controller-1
+    user: 0:0
+    command:
+    - sh
+    - mqcontroller
+    - -c
+    - /config/controller.conf
+    environment:
+      JAVA_OPT_EXT: -Xms256m -Xmx256m
+    volumes:
+    - controller-1:/home/rocketmq/store
+    - ./infra/ha/controller-1.conf:/config/controller.conf:ro
+    profiles:
+    - mq
+    networks:
+    - streamhub
+  controller-2:
+    restart: unless-stopped
+    image: apache/rocketmq:5.3.1
+    hostname: controller-2
+    user: 0:0
+    command:
+    - sh
+    - mqcontroller
+    - -c
+    - /config/controller.conf
+    environment:
+      JAVA_OPT_EXT: -Xms256m -Xmx256m
+    volumes:
+    - controller-2:/home/rocketmq/store
+    - ./infra/ha/controller-2.conf:/config/controller.conf:ro
+    profiles:
+    - mq
+    networks:
+    - streamhub
+  controller-3:
+    restart: unless-stopped
+    image: apache/rocketmq:5.3.1
+    hostname: controller-3
+    user: 0:0
+    command:
+    - sh
+    - mqcontroller
+    - -c
+    - /config/controller.conf
+    environment:
+      JAVA_OPT_EXT: -Xms256m -Xmx256m
+    volumes:
+    - controller-3:/home/rocketmq/store
+    - ./infra/ha/controller-3.conf:/config/controller.conf:ro
+    profiles:
+    - mq
+    networks:
+    - streamhub
+  broker-1:
+    restart: unless-stopped
+    image: apache/rocketmq:5.3.1
+    hostname: broker-1
+    user: 0:0
+    command:
+    - sh
+    - mqbroker
+    - -c
+    - /config/broker.conf
+    environment:
+      JAVA_OPT_EXT: -Xms512m -Xmx512m
+    volumes:
+    - broker-1:/home/rocketmq/store
+    - ./infra/ha/broker-1.conf:/config/broker.conf:ro
+    depends_on:
+    - controller-1
+    - controller-2
+    - controller-3
+    - namesrv-1
+    - namesrv-2
+    profiles:
+    - mq
+    networks:
+    - streamhub
+  broker-2:
+    restart: unless-stopped
+    image: apache/rocketmq:5.3.1
+    hostname: broker-2
+    user: 0:0
+    command:
+    - sh
+    - mqbroker
+    - -c
+    - /config/broker.conf
+    environment:
+      JAVA_OPT_EXT: -Xms512m -Xmx512m
+    volumes:
+    - broker-2:/home/rocketmq/store
+    - ./infra/ha/broker-2.conf:/config/broker.conf:ro
+    depends_on:
+    - controller-1
+    - controller-2
+    - controller-3
+    - namesrv-1
+    - namesrv-2
+    profiles:
+    - mq
+    networks:
+    - streamhub
+  nacos-schema:
+    image: nacos/nacos-server:v2.4.3
+    user: 0:0
+    entrypoint:
+    - sh
+    - -ec
+    - cp /home/nacos/conf/mysql-schema.sql /schema/mysql-schema.sql
+    volumes:
+    - nacos-schema:/schema
+    profiles:
+    - nacos
+    networks:
+    - streamhub
+  nacos-db-init:
+    image: mysql:8.4
+    entrypoint:
+    - sh
+    - -ec
+    - for n in $(seq 1 60); do mysqladmin -h mysql-router -P 6446 -uroot -p"$$MYSQL_PWD"
+      ping --silent && break; sleep 2; done; mysql -h mysql-router -P 6446 -uroot
+      -p"$$MYSQL_PWD" -e "CREATE DATABASE IF NOT EXISTS nacos"; if [ "$(mysql -h mysql-router
+      -P 6446 -uroot -p"$$MYSQL_PWD" -Nse "SELECT COUNT(*) FROM information_schema.tables
+      WHERE table_schema='nacos' AND table_name='config_info'")" = 0 ]; then mysql
+      -h mysql-router -P 6446 -uroot -p"$$MYSQL_PWD" nacos < /schema/mysql-schema.sql;
+      fi
+    environment:
+      MYSQL_PWD: ${HA_MYSQL_ROOT_PASSWORD:-ha-local-root}
+    volumes:
+    - nacos-schema:/schema:ro
+    depends_on:
+      nacos-schema:
+        condition: service_completed_successfully
+      mysql-router:
+        condition: service_started
+    profiles:
+    - nacos
+    networks:
+    - streamhub
+  nacos-1:
+    restart: unless-stopped
+    image: nacos/nacos-server:v2.4.3
+    hostname: nacos-1
+    environment:
+      MODE: cluster
+      PREFER_HOST_MODE: hostname
+      NACOS_SERVERS: nacos-1:8848 nacos-2:8848 nacos-3:8848
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: mysql-router
+      MYSQL_SERVICE_PORT: '6446'
+      MYSQL_SERVICE_DB_NAME: nacos
+      MYSQL_SERVICE_USER: root
+      MYSQL_SERVICE_PASSWORD: ${HA_MYSQL_ROOT_PASSWORD:-ha-local-root}
+      MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&useSSL=false&allowPublicKeyRetrieval=true
+      NACOS_AUTH_ENABLE: 'false'
+      JVM_XMS: 256m
+      JVM_XMX: 256m
+      JVM_XMN: 128m
+      SPRING_APPLICATION_JSON: '{"db":{"pool":{"config":{"maximumPoolSize":5,"minimumIdle":1}}}}'
+    depends_on:
+      nacos-db-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl -fsS http://localhost:8848/nacos/actuator/health
+      interval: 10s
+      timeout: 3s
+      retries: 30
+    profiles:
+    - nacos
+    networks:
+    - streamhub
+  nacos-2:
+    restart: unless-stopped
+    image: nacos/nacos-server:v2.4.3
+    hostname: nacos-2
+    environment:
+      MODE: cluster
+      PREFER_HOST_MODE: hostname
+      NACOS_SERVERS: nacos-1:8848 nacos-2:8848 nacos-3:8848
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: mysql-router
+      MYSQL_SERVICE_PORT: '6446'
+      MYSQL_SERVICE_DB_NAME: nacos
+      MYSQL_SERVICE_USER: root
+      MYSQL_SERVICE_PASSWORD: ${HA_MYSQL_ROOT_PASSWORD:-ha-local-root}
+      MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&useSSL=false&allowPublicKeyRetrieval=true
+      NACOS_AUTH_ENABLE: 'false'
+      JVM_XMS: 256m
+      JVM_XMX: 256m
+      JVM_XMN: 128m
+      SPRING_APPLICATION_JSON: '{"db":{"pool":{"config":{"maximumPoolSize":5,"minimumIdle":1}}}}'
+    depends_on:
+      nacos-db-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl -fsS http://localhost:8848/nacos/actuator/health
+      interval: 10s
+      timeout: 3s
+      retries: 30
+    profiles:
+    - nacos
+    networks:
+    - streamhub
+  nacos-3:
+    restart: unless-stopped
+    image: nacos/nacos-server:v2.4.3
+    hostname: nacos-3
+    environment:
+      MODE: cluster
+      PREFER_HOST_MODE: hostname
+      NACOS_SERVERS: nacos-1:8848 nacos-2:8848 nacos-3:8848
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: mysql-router
+      MYSQL_SERVICE_PORT: '6446'
+      MYSQL_SERVICE_DB_NAME: nacos
+      MYSQL_SERVICE_USER: root
+      MYSQL_SERVICE_PASSWORD: ${HA_MYSQL_ROOT_PASSWORD:-ha-local-root}
+      MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&useSSL=false&allowPublicKeyRetrieval=true
+      NACOS_AUTH_ENABLE: 'false'
+      JVM_XMS: 256m
+      JVM_XMX: 256m
+      JVM_XMN: 128m
+      SPRING_APPLICATION_JSON: '{"db":{"pool":{"config":{"maximumPoolSize":5,"minimumIdle":1}}}}'
+    depends_on:
+      nacos-db-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - curl -fsS http://localhost:8848/nacos/actuator/health
+      interval: 10s
+      timeout: 3s
+      retries: 30
+    profiles:
+    - nacos
+    networks:
+    - streamhub
+  srs-1:
+    restart: unless-stopped
+    image: ossrs/srs:6
+    command:
+    - ./objs/srs
+    - -c
+    - conf/docker.conf
+    ports:
+    - 19351:1935
+    - 18081:8080
+    - 11986:1985
+    - 18001:18001/udp
+    profiles:
+    - media
+    networks:
+    - streamhub
+    environment:
+      CANDIDATE: ${MEDIA_PUBLIC_IP:-127.0.0.1}
+      SRS_RTC_SERVER_LISTEN: '18001'
+  srs-2:
+    restart: unless-stopped
+    image: ossrs/srs:6
+    command:
+    - ./objs/srs
+    - -c
+    - conf/docker.conf
+    ports:
+    - 19352:1935
+    - 18082:8080
+    - 11987:1985
+    - 18002:18002/udp
+    profiles:
+    - media
+    networks:
+    - streamhub
+    environment:
+      CANDIDATE: ${MEDIA_PUBLIC_IP:-127.0.0.1}
+      SRS_RTC_SERVER_LISTEN: '18002'
+  media-proxy:
+    restart: unless-stopped
+    image: nginx:1.27-alpine
+    volumes:
+    - ./infra/ha/media.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+    - srs-1
+    - srs-2
+    ports:
+    - 18080:8080
+    - 11985:1985
+    profiles:
+    - media
+    networks:
+    - streamhub
+volumes:
+  mysql-1: {}
+  mysql-2: {}
+  mysql-3: {}
+  redis-1: {}
+  redis-2: {}
+  redis-3: {}
+  sentinel-1: {}
+  sentinel-2: {}
+  sentinel-3: {}
+  controller-1: {}
+  controller-2: {}
+  controller-3: {}
+  broker-1: {}
+  broker-2: {}
+  nacos-schema: {}
+networks:
+  streamhub:
+    name: streamhub-ha
+    ipam:
+      config:
+      - subnet: ${HA_NETWORK_PREFIX:-172.30.240}.0/24
+        ip_range: ${HA_NETWORK_PREFIX:-172.30.240}.128/25

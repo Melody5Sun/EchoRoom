@@ -1,0 +1,83 @@
+# Start infra with its own project first; see infra/ha/README.md.
+services:
+  mysql:
+    profiles: [single-node]
+  redis:
+    profiles: [single-node]
+  rocketmq-volume-init:
+    profiles: [single-node]
+  rocketmq-namesrv:
+    profiles: [single-node]
+  rocketmq-broker:
+    profiles: [single-node]
+  nacos:
+    profiles: [single-node]
+  srs:
+    profiles: [single-node]
+  minio:
+    profiles: [single-node]
+  auth-service:
+    ports: !reset []
+    depends_on: !reset {}
+    environment:
+      SPRING_PROFILES_ACTIVE: redis-sentinel
+      REDIS_SENTINEL_MASTER: streamhub
+      REDIS_SENTINEL_NODES: sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
+      DB_URL: jdbc:mysql://mysql-router:6446/streamhub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: streamhub
+      DB_PASSWORD: ${HA_DB_PASSWORD:-ha-local-app}
+      NACOS_SERVER_ADDR: nacos-1:8848,nacos-2:8848,nacos-3:8848
+  user-service:
+    ports: !reset []
+    depends_on: !reset {}
+    environment:
+      SPRING_PROFILES_ACTIVE: redis-sentinel
+      REDIS_SENTINEL_MASTER: streamhub
+      REDIS_SENTINEL_NODES: sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
+      DB_URL: jdbc:mysql://mysql-router:6446/streamhub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: streamhub
+      DB_PASSWORD: ${HA_DB_PASSWORD:-ha-local-app}
+      NACOS_SERVER_ADDR: nacos-1:8848,nacos-2:8848,nacos-3:8848
+  live-service:
+    ports: !reset []
+    depends_on: !reset {}
+    environment:
+      SPRING_PROFILES_ACTIVE: redis-sentinel
+      REDIS_SENTINEL_MASTER: streamhub
+      REDIS_SENTINEL_NODES: sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
+      DB_URL: jdbc:mysql://mysql-router:6446/streamhub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: streamhub
+      DB_PASSWORD: ${HA_DB_PASSWORD:-ha-local-app}
+      NACOS_SERVER_ADDR: nacos-1:8848,nacos-2:8848,nacos-3:8848
+      ROCKETMQ_NAMESRV_ADDR: namesrv-1:9876;namesrv-2:9876
+  gateway-service:
+    ports: !reset []
+    depends_on: !reset {}
+    environment:
+      SPRING_PROFILES_ACTIVE: redis-sentinel
+      REDIS_SENTINEL_MASTER: streamhub
+      REDIS_SENTINEL_NODES: sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
+      DB_URL: jdbc:mysql://mysql-router:6446/streamhub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: streamhub
+      DB_PASSWORD: ${HA_DB_PASSWORD:-ha-local-app}
+      NACOS_SERVER_ADDR: nacos-1:8848,nacos-2:8848,nacos-3:8848
+  realtime-gateway:
+    ports: !reset []
+    depends_on: !reset {}
+    environment:
+      SPRING_PROFILES_ACTIVE: redis-sentinel
+      REDIS_SENTINEL_MASTER: streamhub
+      REDIS_SENTINEL_NODES: sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
+      DB_URL: jdbc:mysql://mysql-router:6446/streamhub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: streamhub
+      DB_PASSWORD: ${HA_DB_PASSWORD:-ha-local-app}
+      NACOS_SERVER_ADDR: nacos-1:8848,nacos-2:8848,nacos-3:8848
+  web:
+    depends_on: !reset {}
+    environment:
+      MEDIA_UPSTREAM: media-proxy:8080
+      RTC_UPSTREAM: media-proxy:1985
+networks:
+  streamhub:
+    external: true
+    name: streamhub-ha

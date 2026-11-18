@@ -1,0 +1,131 @@
+# StreamHub 故障演练手册
+
+本文档提供可重复的本地演练步骤。每次演练先记录 Git commit、Java 参数、Docker 资源、测试用户、房间、活动和开始时间，再执行故障注入。
+
+## 公共准备
+
+~~~powershell
+docker compose up -d
+docker compose ps
+
+# 启动 Java 服务后检查
+Invoke-RestMethod http://localhost:8088/api/v1/auth/ping
+Invoke-RestMethod http://localhost:8088/api/v1/live/ping
+Invoke-RestMethod http://localhost:8083/actuator/health
+~~~
+
+准备一名主播和多个测试用户，创建一个库存至少为 100 的活动，并保存：
+
+- Git commit
+- activityId、roomId
+- 测试用户 ID 和 Token
+- Redis 活动库存
+- MySQL activity_order 行数
+- RocketMQ 控制台中的消费位点
+
+## MQ 重复投递和消费失败
+
+1. 用同一个 clientOrderNo 连续调用秒杀或送礼接口。
+2. 查询对应订单，确认只有一条订单记录，重复请求返回相同订单号。
+3. 在 RocketMQ 消费期间停止 Live 服务，制造消费积压，再启动服务。
+4. 观察订单从 PENDING 变为 SUCCESS 或符合业务规则的 FAILED。
+5. 将同一消息重新投递或等待重试，确认钱包流水和订单没有重复写入。
+6. 停止 RocketMQ Broker 后创建订单，确认订单和 `mq_outbox` 同时提交且 Outbox 保持 PENDING；恢复 Broker 后确认事件变为 SENT、订单最终完成。
+7. 构造永久非法消息或让消费连续失败超过 `ROCKETMQ_MAX_RECONSUME_TIMES`，确认消息进入 `mq_dead_letter`，并在运营接口执行重放或忽略。
+
+关键指标：
+
+~~~text
+streamhub_mq_consumer_lag
+streamhub_mq_outbox_pending
+streamhub_mq_outbox_failed
+streamhub_mq_outbox_oldest_age_seconds
+streamhub_mq_deadletter_new
+streamhub_mq_consume_total
+~~~
+
+运营接口需要 OPERATOR 或 ADMIN 权限：
+
+~~~text
+GET  /api/v1/ops/mq/dead-letters?status=NEW
+POST /api/v1/ops/mq/dead-letters/{id}/replay
+POST /api/v1/ops/mq/dead-letters/{id}/ignore
+GET  /api/v1/ops/mq/outbox?status=FAILED
+POST /api/v1/ops/mq/outbox/{id}/retry
+~~~
+
+记录：
+
+~~~text
+注入时间：
+恢复时间：
+订单最终状态：
+重复消费次数：
+钱包流水数量：
+是否需要人工补偿：
+~~~
+
+## Redis 故障和恢复
+
+1. 连接一个已建立的 WebSocket，发送一条弹幕并记录消息 ID。
+2. 执行 docker compose stop redis。
+3. 保持已建连接并确认仍收到 HEARTBEAT_ACK。在默认保护模式下发送另一条弹幕，确认收到 UNAVAILABLE，并记录新增交易的 HTTP 503。
+4. 执行 docker compose start redis，等待连接恢复。
+5. 用新 Ticket 重连，从故障前的游标拉取历史。确认已落库但可能漏收的消息可补偿，被拒绝的新弹幕没有写入历史。
+6. 对活动抢购单独记录 Redis 错误响应；恢复后重试同一个 clientOrderNo，核对最终只存在一条业务订单。
+
+## 服务重启和 WebSocket 节点摘除
+
+1. 启动两个 Live 实例和两个 Realtime Gateway 实例，使用不同的 STREAMHUB_NODE_ID 和端口；运行时还会追加进程启动 UUID。
+2. 让同一用户在两个 Live 节点分别建立连接，确认房间在线人数只增加 1，用户连接 ZSet 中存在两个不同 member。
+3. 关闭其中一条连接，确认用户仍在线；关闭最后一条连接后，确认用户从房间在线 ZSet 移除。
+4. 建立连接后停止发送心跳，确认客户端 45 秒无 ACK 后主动重连，服务端在 75 秒超时加 15 秒扫描窗口内关闭僵尸连接。
+5. 强制终止其中一个 Live 节点，确认其遗留 Presence 在 90 秒后不再计入在线人数，在线相关 Key 最终按 TTL 回收。
+6. 停止其中一个 Realtime Gateway，确认另一个节点仍能接受连接和广播。
+7. 重启被停止的节点，客户端重连并按 afterId 补偿弹幕。
+8. 对比 Prometheus 的 published、dropped 和 local fallback 指标。
+
+## Redis Key 与 Lua 集成验证
+
+1. 使用 Testcontainers 启动与生产主版本一致的 Redis 7.4。
+2. 验证心跳 Lua 同时更新房间用户 ZSet 和用户连接 ZSet，并刷新两个 Key 的 TTL。
+3. 验证两个 nodeId 使用相同 connectionId 时不会覆盖。
+4. 验证在线状态和活动库存的多 Key 使用相同 Cluster Slot。
+5. 若生产启用 Redis Cluster，在真实 Cluster 环境重复执行脚本，确认不存在 CROSSSLOT。
+
+## 对账 SQL
+
+~~~sql
+-- 活动订单状态和业务号
+SELECT order_no, user_id, status, created_at, updated_at
+FROM activity_order
+WHERE activity_id = :activityId
+ORDER BY id;
+
+-- 礼物订单和钱包流水
+SELECT order_no, sender_id, status, created_at, updated_at
+FROM gift_order
+WHERE room_id = :roomId
+ORDER BY id;
+
+SELECT biz_no, user_id, change_amount, entry_type, reference_id
+FROM wallet_ledger
+WHERE reference_id IN (:orderNos)
+ORDER BY id;
+~~~
+
+## 演练结论模板
+
+~~~text
+场景：
+代码版本：
+依赖版本：
+故障注入：
+影响范围：
+恢复动作：
+恢复耗时：
+最终一致性检查：
+遗留问题：
+~~~
+
+活跃 WebSocket 下的 Redis Sentinel 切换、业务拒绝和历史补偿见[故障补偿记录](memory-recovery-2026-11-03.md)。完整验收结果见[证据索引](acceptance-status-2026-11-04.md)。

@@ -1,0 +1,138 @@
+spring:
+  application:
+    name: streamhub-gateway
+  config:
+    import:
+      - optional:nacos:streamhub-shared.yaml?group=${NACOS_CONFIG_GROUP:STREAMHUB}&refreshEnabled=true
+      - optional:nacos:${spring.application.name}.yaml?group=${NACOS_CONFIG_GROUP:STREAMHUB}&refreshEnabled=true
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        enabled: ${NACOS_DISCOVERY_ENABLED:true}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        enabled: ${NACOS_CONFIG_ENABLED:true}
+    gateway:
+      httpclient:
+        connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_MS:1000}
+        response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:3s}
+        pool:
+          type: fixed
+          max-connections: ${GATEWAY_MAX_CONNECTIONS:500}
+          max-idle-time: ${GATEWAY_MAX_IDLE_TIME:30s}
+          max-life-time: ${GATEWAY_MAX_LIFE_TIME:5m}
+          acquire-timeout: ${GATEWAY_POOL_ACQUIRE_TIMEOUT_MS:1000}
+      routes:
+        - id: auth-service
+          uri: lb://streamhub-auth
+          predicates:
+            - Path=/api/v1/auth/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@routeClientIpKeyResolver}"
+                redis-rate-limiter.replenishRate: ${AUTH_RATE_LIMIT_RPS:10}
+                redis-rate-limiter.burstCapacity: ${AUTH_RATE_LIMIT_BURST:20}
+            - name: CircuitBreaker
+              args:
+                name: authService
+                fallbackUri: forward:/fallback/auth
+        - id: user-service
+          uri: lb://streamhub-user
+          predicates:
+            - Path=/api/v1/users/**,/api/v1/ops/users/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: userService
+                fallbackUri: forward:/fallback/user
+        - id: live-service-api
+          uri: lb://streamhub-live
+          predicates:
+            - Path=/api/v1/live/**,/api/v1/gifts,/api/v1/wallet/**,/api/v1/activities/**,/api/v1/gift-orders/**,/api/v1/activity-orders/**,/api/v1/ops/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: liveService
+                fallbackUri: forward:/fallback/live
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
+      timeout: ${REDIS_COMMAND_TIMEOUT:2s}
+
+streamhub:
+  cors:
+    allowed-origins: ${STREAMHUB_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8089}
+  gateway:
+    traffic-mode: ${GATEWAY_TRAFFIC_MODE:enforce}
+    trusted-proxies: ${GATEWAY_TRUSTED_PROXIES:}
+    ip-rate: ${GATEWAY_IP_RATE:100}
+    ip-burst: ${GATEWAY_IP_BURST:200}
+    http:
+      connect-timeout-ms: ${AUTH_INTROSPECT_CONNECT_TIMEOUT_MS:500}
+      response-timeout-ms: ${AUTH_INTROSPECT_RESPONSE_TIMEOUT_MS:1500}
+      max-connections: ${AUTH_INTROSPECT_MAX_CONNECTIONS:200}
+      max-idle-time-ms: ${AUTH_INTROSPECT_MAX_IDLE_TIME_MS:30000}
+      max-life-time-ms: ${AUTH_INTROSPECT_MAX_LIFE_TIME_MS:300000}
+      pending-acquire-timeout-ms: ${AUTH_INTROSPECT_POOL_ACQUIRE_TIMEOUT_MS:500}
+
+server:
+  port: ${SERVER_PORT:8088}
+
+management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        streamhub.realtime.send.duration: true
+        streamhub.wallet.lock.duration: true
+        streamhub.gift.transaction.duration: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway,metrics,prometheus
+  endpoint:
+    gateway:
+      enabled: true
+    health:
+      probes:
+        enabled: true
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      authService:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: ${AUTH_CIRCUIT_WINDOW_SIZE:20}
+        minimum-number-of-calls: ${AUTH_CIRCUIT_MIN_CALLS:10}
+        failure-rate-threshold: ${AUTH_CIRCUIT_FAILURE_RATE:50}
+        wait-duration-in-open-state: ${AUTH_CIRCUIT_OPEN_WAIT:10s}
+        permitted-number-of-calls-in-half-open-state: ${AUTH_CIRCUIT_HALF_OPEN_CALLS:3}
+      userService:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: ${USER_CIRCUIT_WINDOW_SIZE:20}
+        minimum-number-of-calls: ${USER_CIRCUIT_MIN_CALLS:10}
+        failure-rate-threshold: ${USER_CIRCUIT_FAILURE_RATE:50}
+        wait-duration-in-open-state: ${USER_CIRCUIT_OPEN_WAIT:10s}
+        permitted-number-of-calls-in-half-open-state: ${USER_CIRCUIT_HALF_OPEN_CALLS:3}
+      liveService:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: ${LIVE_CIRCUIT_WINDOW_SIZE:20}
+        minimum-number-of-calls: ${LIVE_CIRCUIT_MIN_CALLS:10}
+        failure-rate-threshold: ${LIVE_CIRCUIT_FAILURE_RATE:50}
+        wait-duration-in-open-state: ${LIVE_CIRCUIT_OPEN_WAIT:10s}
+        permitted-number-of-calls-in-half-open-state: ${LIVE_CIRCUIT_HALF_OPEN_CALLS:3}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: redis-sentinel
+  data:
+    redis:
+      sentinel:
+        master: ${REDIS_SENTINEL_MASTER:streamhub}
+        nodes: ${REDIS_SENTINEL_NODES:sentinel-1:26379,sentinel-2:26379,sentinel-3:26379}

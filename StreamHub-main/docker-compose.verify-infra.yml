@@ -1,0 +1,80 @@
+# Explicit low-memory rehearsal parameters; do not infer production capacity from them.
+services:
+  mysql-1:
+    command:
+    - --server-id=1
+    - --gtid-mode=ON
+    - --enforce-gtid-consistency=ON
+    - --log-bin=mysql-bin
+    - --binlog-format=ROW
+    - --report-host=mysql-1
+    - --max-connections=200
+    - --innodb-buffer-pool-size=67108864
+    - --performance-schema-digests-size=1000
+    - --performance-schema-max-table-instances=1000
+    - --table-open-cache=400
+  controller-1:
+    environment:
+      JAVA_OPT_EXT: -Xms128m -Xmx128m -Xmn64m -XX:ActiveProcessorCount=2
+  nacos-1:
+    environment:
+      JVM_XMS: 192m
+      JVM_XMX: 192m
+      JVM_XMN: 64m
+      JAVA_TOOL_OPTIONS: -XX:ActiveProcessorCount=2
+  mysql-2:
+    command:
+    - --server-id=2
+    - --gtid-mode=ON
+    - --enforce-gtid-consistency=ON
+    - --log-bin=mysql-bin
+    - --binlog-format=ROW
+    - --report-host=mysql-2
+    - --max-connections=200
+    - --innodb-buffer-pool-size=67108864
+    - --performance-schema-digests-size=1000
+    - --performance-schema-max-table-instances=1000
+    - --table-open-cache=400
+  controller-2:
+    environment:
+      JAVA_OPT_EXT: -Xms128m -Xmx128m -Xmn64m -XX:ActiveProcessorCount=2
+  nacos-2:
+    environment:
+      JVM_XMS: 192m
+      JVM_XMX: 192m
+      JVM_XMN: 64m
+      JAVA_TOOL_OPTIONS: -XX:ActiveProcessorCount=2
+  mysql-3:
+    command:
+    - --server-id=3
+    - --gtid-mode=ON
+    - --enforce-gtid-consistency=ON
+    - --log-bin=mysql-bin
+    - --binlog-format=ROW
+    - --report-host=mysql-3
+    - --max-connections=200
+    - --innodb-buffer-pool-size=67108864
+    - --performance-schema-digests-size=1000
+    - --performance-schema-max-table-instances=1000
+    - --table-open-cache=400
+  controller-3:
+    environment:
+      JAVA_OPT_EXT: -Xms128m -Xmx128m -Xmn64m -XX:ActiveProcessorCount=2
+  nacos-3:
+    environment:
+      JVM_XMS: 192m
+      JVM_XMX: 192m
+      JVM_XMN: 64m
+      JAVA_TOOL_OPTIONS: -XX:ActiveProcessorCount=2
+  namesrv-1:
+    environment:
+      JAVA_OPT_EXT: -Xms128m -Xmx128m -Xmn64m -XX:ActiveProcessorCount=2
+  broker-1:
+    environment:
+      JAVA_OPT_EXT: -Xms256m -Xmx256m -Xmn128m -XX:MaxDirectMemorySize=128m -XX:ActiveProcessorCount=2
+  namesrv-2:
+    environment:
+      JAVA_OPT_EXT: -Xms128m -Xmx128m -Xmn64m -XX:ActiveProcessorCount=2
+  broker-2:
+    environment:
+      JAVA_OPT_EXT: -Xms256m -Xmx256m -Xmn128m -XX:MaxDirectMemorySize=128m -XX:ActiveProcessorCount=2

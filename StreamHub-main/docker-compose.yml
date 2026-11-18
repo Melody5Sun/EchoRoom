@@ -1,0 +1,400 @@
+name: streamhub
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-streamhub}
+      MYSQL_USER: ${MYSQL_USER:-streamhub}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-streamhub}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-streamhub-root}
+    ports:
+      - "${MYSQL_PORT:-13306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [streamhub]
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [streamhub]
+
+  rocketmq-volume-init:
+    image: apache/rocketmq:5.3.1
+    user: "0:0"
+    command: ["sh", "-c", "chown -R 3000:3000 /volumes/namesrv-logs /volumes/broker-logs /volumes/broker-store"]
+    volumes:
+      - rocketmq-namesrv-logs:/volumes/namesrv-logs
+      - rocketmq-broker-logs:/volumes/broker-logs
+      - rocketmq-broker-store:/volumes/broker-store
+    networks: [streamhub]
+
+  rocketmq-namesrv:
+    image: apache/rocketmq:5.3.1
+    command: ["nameserver"]
+    depends_on:
+      rocketmq-volume-init:
+        condition: service_completed_successfully
+    ports:
+      - "9876:9876"
+    volumes:
+      - rocketmq-namesrv-logs:/home/rocketmq/logs
+    networks: [streamhub]
+
+  rocketmq-broker:
+    image: apache/rocketmq:5.3.1
+    command: ["sh", "mqbroker", "-c", "/home/rocketmq/rocketmq-5.3.1/conf/broker.conf"]
+    depends_on:
+      rocketmq-volume-init:
+        condition: service_completed_successfully
+      rocketmq-namesrv:
+        condition: service_started
+    environment:
+      NAMESRV_ADDR: rocketmq-namesrv:9876
+      JAVA_OPT_EXT: "-server -Xms512m -Xmx512m -Duser.home=/home/rocketmq"
+    ports:
+      - "10909:10909"
+      - "10911:10911"
+    volumes:
+      - rocketmq-broker-logs:/home/rocketmq/logs
+      - rocketmq-broker-store:/home/rocketmq/store
+      - ./infra/rocketmq/broker.conf:/home/rocketmq/rocketmq-5.3.1/conf/broker.conf:ro
+    networks: [streamhub]
+
+  nacos:
+    image: nacos/nacos-server:v2.4.3
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    volumes:
+      - nacos-logs:/home/nacos/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8848/nacos/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks: [streamhub]
+
+  srs:
+    image: ossrs/srs:6
+    command: ["./objs/srs", "-c", "conf/docker.conf"]
+    ports:
+      - "1935:1935"
+      - "1985:1985"
+      - "8080:8080"
+      - "8000:8000/udp"
+    networks: [streamhub]
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: auth-service
+    environment: &business-service-environment
+      AUTH_DB_POOL_MAX_SIZE: ${AUTH_DB_POOL_MAX_SIZE:-10}
+      AUTH_DB_POOL_MIN_IDLE: ${AUTH_DB_POOL_MIN_IDLE:-2}
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-streamhub}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&createDatabaseIfNotExist=true
+      DB_USERNAME: ${MYSQL_USER:-streamhub}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-streamhub}
+      REDIS_HOST: redis
+      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_DISCOVERY_ENABLED: "true"
+      NACOS_CONFIG_ENABLED: "true"
+      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-STREAMHUB}
+    ports:
+      - "${AUTH_SERVICE_PORT:-8081}:8081"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8081/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    restart: unless-stopped
+    networks: [streamhub]
+
+  user-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: user-service
+    environment:
+      <<: *business-service-environment
+      USER_DB_POOL_MAX_SIZE: ${USER_DB_POOL_MAX_SIZE:-10}
+      USER_DB_POOL_MIN_IDLE: ${USER_DB_POOL_MIN_IDLE:-2}
+    ports:
+      - "${USER_SERVICE_PORT:-8082}:8082"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8082/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    restart: unless-stopped
+    networks: [streamhub]
+
+  live-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: live-service
+    environment:
+      <<: *business-service-environment
+      LIVE_DB_POOL_MAX_SIZE: ${LIVE_DB_POOL_MAX_SIZE:-20}
+      LIVE_DB_POOL_MIN_IDLE: ${LIVE_DB_POOL_MIN_IDLE:-2}
+      STREAMHUB_TRAFFIC_MAX_INFLIGHT: ${STREAMHUB_TRAFFIC_MAX_INFLIGHT:-128}
+      SECKILL_USER_RATE: ${SECKILL_USER_RATE:-2}
+      SECKILL_USER_BURST: ${SECKILL_USER_BURST:-4}
+      SECKILL_ACTIVITY_RATE: ${SECKILL_ACTIVITY_RATE:-100}
+      SECKILL_ACTIVITY_BURST: ${SECKILL_ACTIVITY_BURST:-200}
+      GIFT_USER_RATE: ${GIFT_USER_RATE:-5}
+      GIFT_USER_BURST: ${GIFT_USER_BURST:-10}
+      GIFT_ROOM_RATE: ${GIFT_ROOM_RATE:-100}
+      GIFT_ROOM_BURST: ${GIFT_ROOM_BURST:-200}
+      CHAT_USER_RATE: ${CHAT_USER_RATE:-3}
+      CHAT_USER_BURST: ${CHAT_USER_BURST:-5}
+      CHAT_ROOM_RATE: ${CHAT_ROOM_RATE:-100}
+      CHAT_ROOM_BURST: ${CHAT_ROOM_BURST:-200}
+      STREAMHUB_CACHE_ENABLED: ${STREAMHUB_CACHE_ENABLED:-true}
+      STREAMHUB_CACHE_TTL_SECONDS: ${STREAMHUB_CACHE_TTL_SECONDS:-30}
+      STREAMHUB_CACHE_MAX_LOADERS: ${STREAMHUB_CACHE_MAX_LOADERS:-16}
+      STREAMHUB_UNSUBSCRIBE_DELAY_MS: ${STREAMHUB_UNSUBSCRIBE_DELAY_MS:-30000}
+      STREAMHUB_MAX_SESSIONS: ${STREAMHUB_MAX_SESSIONS:-20000}
+      STREAMHUB_ASYNC_SEND: ${STREAMHUB_ASYNC_SEND:-true}
+      STREAMHUB_SEND_THREADS: ${STREAMHUB_SEND_THREADS:-16}
+      STREAMHUB_SEND_QUEUE_MESSAGES: ${STREAMHUB_SEND_QUEUE_MESSAGES:-256}
+      STREAMHUB_SEND_QUEUE_BYTES: ${STREAMHUB_SEND_QUEUE_BYTES:-262144}
+      STREAMHUB_SEND_NODE_BYTES: ${STREAMHUB_SEND_NODE_BYTES:-67108864}
+      STREAMHUB_SEND_TIMEOUT_MS: ${STREAMHUB_SEND_TIMEOUT_MS:-5000}
+      STREAMHUB_TRAFFIC_MODE: ${STREAMHUB_TRAFFIC_MODE:-enforce}
+      STREAMHUB_REALTIME_CHANNEL_MODE: ${STREAMHUB_REALTIME_CHANNEL_MODE:-room}
+      ROCKETMQ_NAMESRV_ADDR: rocketmq-namesrv:9876
+      ROCKETMQ_CONSUME_THREAD_MIN: ${ROCKETMQ_CONSUME_THREAD_MIN:-4}
+      ROCKETMQ_CONSUME_THREAD_MAX: ${ROCKETMQ_CONSUME_THREAD_MAX:-8}
+      ROCKETMQ_CONSUME_BATCH_MAX_SIZE: ${ROCKETMQ_CONSUME_BATCH_MAX_SIZE:-1}
+      ROCKETMQ_MAX_RECONSUME_TIMES: ${ROCKETMQ_MAX_RECONSUME_TIMES:-5}
+      ROCKETMQ_PRODUCER_RETRY_TIMES: ${ROCKETMQ_PRODUCER_RETRY_TIMES:-2}
+      ROCKETMQ_DEAD_LETTER_ENABLED: ${ROCKETMQ_DEAD_LETTER_ENABLED:-true}
+      ROCKETMQ_DEAD_LETTER_CONSUMER_GROUP: ${ROCKETMQ_DEAD_LETTER_CONSUMER_GROUP:-streamhub-dead-letter-auditor}
+      ROCKETMQ_OUTBOX_ENABLED: ${ROCKETMQ_OUTBOX_ENABLED:-true}
+      ROCKETMQ_OUTBOX_BATCH_SIZE: ${ROCKETMQ_OUTBOX_BATCH_SIZE:-100}
+      ROCKETMQ_OUTBOX_MAX_ATTEMPTS: ${ROCKETMQ_OUTBOX_MAX_ATTEMPTS:-20}
+      ROCKETMQ_OUTBOX_BASE_RETRY_DELAY_MS: ${ROCKETMQ_OUTBOX_BASE_RETRY_DELAY_MS:-1000}
+      ROCKETMQ_OUTBOX_FIXED_DELAY_MS: ${ROCKETMQ_OUTBOX_FIXED_DELAY_MS:-500}
+      ROCKETMQ_METRICS_REFRESH_MS: ${ROCKETMQ_METRICS_REFRESH_MS:-15000}
+      ROCKETMQ_LAG_MONITOR_INITIAL_DELAY_MS: ${ROCKETMQ_LAG_MONITOR_INITIAL_DELAY_MS:-15000}
+      ROCKETMQ_LAG_MONITOR_FIXED_DELAY_MS: ${ROCKETMQ_LAG_MONITOR_FIXED_DELAY_MS:-15000}
+      STREAMHUB_NODE_ID: ${STREAMHUB_NODE_ID:-compose-live}
+      MEDIA_RTMP_PUBLISH_BASE: ${MEDIA_RTMP_PUBLISH_BASE:-rtmp://localhost:1935/live/}
+      MEDIA_HTTP_FLV_PLAY_BASE: ${MEDIA_HTTP_FLV_PLAY_BASE:-/live/}
+      MEDIA_WEBRTC_PLAY_BASE: ${MEDIA_WEBRTC_PLAY_BASE:-/rtc/v1/whep/?app=live&stream=}
+    ports:
+      - "${LIVE_SERVICE_PORT:-8083}:8083"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      rocketmq-broker:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8083/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 45s
+    restart: unless-stopped
+    networks: [streamhub]
+
+  gateway-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: gateway-service
+    environment:
+      GATEWAY_TRAFFIC_MODE: ${GATEWAY_TRAFFIC_MODE:-enforce}
+      GATEWAY_TRUSTED_PROXIES: ${GATEWAY_TRUSTED_PROXIES:-}
+      GATEWAY_IP_RATE: ${GATEWAY_IP_RATE:-100}
+      GATEWAY_IP_BURST: ${GATEWAY_IP_BURST:-200}
+      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_DISCOVERY_ENABLED: "true"
+      NACOS_CONFIG_ENABLED: "true"
+      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-STREAMHUB}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      STREAMHUB_ALLOWED_ORIGINS: ${STREAMHUB_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8089}
+    ports:
+      - "${GATEWAY_SERVICE_PORT:-8088}:8088"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      live-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8088/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    networks: [streamhub]
+
+  realtime-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: realtime-gateway
+    environment:
+      GATEWAY_TRAFFIC_MODE: ${GATEWAY_TRAFFIC_MODE:-enforce}
+      GATEWAY_TRUSTED_PROXIES: ${GATEWAY_TRUSTED_PROXIES:-}
+      GATEWAY_IP_RATE: ${GATEWAY_IP_RATE:-100}
+      GATEWAY_IP_BURST: ${GATEWAY_IP_BURST:-200}
+      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_DISCOVERY_ENABLED: "true"
+      NACOS_CONFIG_ENABLED: "true"
+      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-STREAMHUB}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      STREAMHUB_ALLOWED_ORIGINS: ${STREAMHUB_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8089}
+    ports:
+      - "${REALTIME_GATEWAY_PORT:-8090}:8090"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      live-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8090/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    networks: [streamhub]
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${WEB_PORT:-8089}:80"
+    environment:
+      API_UPSTREAM: gateway-service:8088
+      REALTIME_UPSTREAM: realtime-gateway:8090
+      MEDIA_UPSTREAM: srs:8080
+      RTC_UPSTREAM: srs:1985
+      NGINX_ENVSUBST_FILTER: ^(API_UPSTREAM|REALTIME_UPSTREAM|MEDIA_UPSTREAM|RTC_UPSTREAM)$$
+    depends_on:
+      gateway-service:
+        condition: service_healthy
+      realtime-gateway:
+        condition: service_healthy
+      srs:
+        condition: service_started
+    restart: unless-stopped
+    networks: [streamhub]
+
+  minio:
+    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-streamhub}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-streamhub-minio}
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks: [streamhub]
+
+  prometheus:
+    restart: unless-stopped
+    image: prom/prometheus:v2.53.3
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    networks: [streamhub]
+
+  grafana:
+    restart: unless-stopped
+    image: grafana/grafana:11.2.0
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-streamhub-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks: [streamhub]
+
+volumes:
+  mysql-data:
+  redis-data:
+  rocketmq-namesrv-logs:
+  rocketmq-broker-logs:
+  rocketmq-broker-store:
+  nacos-logs:
+  minio-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  streamhub:
+    driver: bridge

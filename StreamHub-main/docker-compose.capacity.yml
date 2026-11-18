@@ -1,0 +1,36 @@
+# Reproducible baseline limits, per replica. Use the same overlay before and after a change.
+services:
+  auth-service:
+    cpus: 1
+    mem_limit: 768m
+    environment:
+      JAVA_OPTS: -Xms512m -Xmx512m -Xlog:gc:stdout:time,level,tags
+  user-service:
+    cpus: 1
+    mem_limit: 768m
+    environment:
+      JAVA_OPTS: -Xms512m -Xmx512m -Xlog:gc:stdout:time,level,tags
+  live-service:
+    cpus: 2
+    mem_limit: 1536m
+    environment:
+      JAVA_OPTS: -Xms1g -Xmx1g -Xlog:gc:stdout:time,level,tags
+  gateway-service:
+    cpus: 1
+    mem_limit: 768m
+    environment:
+      JAVA_OPTS: -Xms512m -Xmx512m -Xlog:gc:stdout:time,level,tags
+  realtime-gateway:
+    cpus: 1
+    mem_limit: 768m
+    environment:
+      JAVA_OPTS: -Xms512m -Xmx512m -Xlog:gc:stdout:time,level,tags
+  mysql:
+    cpus: 2
+    mem_limit: 2g
+  redis:
+    cpus: 1
+    mem_limit: 1g
+  rocketmq-broker:
+    cpus: 2
+    mem_limit: 2g

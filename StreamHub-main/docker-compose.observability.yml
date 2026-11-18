@@ -1,0 +1,20 @@
+services:
+  mysql-exporter:
+    restart: unless-stopped
+    image: prom/mysqld-exporter:v0.16.0
+    command: ["--mysqld.address=${MONITOR_MYSQL_ADDRESS:-mysql:3306}", "--mysqld.username=exporter", "--collect.perf_schema.eventsstatements", "--collect.perf_schema.tablelocks", "--collect.info_schema.innodb_metrics"]
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: ${MYSQL_MONITOR_PASSWORD:-local-monitor}
+    networks: [streamhub]
+  redis-exporter:
+    restart: unless-stopped
+    image: oliver006/redis_exporter:v1.67.0
+    environment:
+      REDIS_ADDR: ${MONITOR_REDIS_ADDRESS:-redis://redis:6379}
+    networks: [streamhub]
+  node-exporter:
+    restart: unless-stopped
+    image: prom/node-exporter:v1.8.2
+    command: ["--path.rootfs=/host"]
+    volumes: ["/:/host:ro"]
+    networks: [streamhub]

@@ -1,0 +1,42 @@
+# Local rehearsal: build with mvn package and npm run build first; use --no-build.
+# Stop affected services before rebuilding mounted JARs; recreate them after packaging.
+services:
+  auth-service:
+    volumes:
+    - ./auth-service/target/auth-service-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      JAVA_OPTS: -Xms128m -Xmx192m -XX:MaxDirectMemorySize=128m -Xlog:gc:stdout:time,level,tags
+      AUTH_ACCESS_TTL: 4h
+    mem_limit: 512m
+  user-service:
+    volumes:
+    - ./user-service/target/user-service-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      JAVA_OPTS: -Xms128m -Xmx192m -XX:MaxDirectMemorySize=128m -Xlog:gc:stdout:time,level,tags
+      AUTH_ACCESS_TTL: 4h
+    mem_limit: 512m
+  live-service:
+    volumes:
+    - ./live-service/target/live-service-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      JAVA_OPTS: -Xms128m -Xmx384m -XX:MaxDirectMemorySize=128m -Xlog:gc:stdout:time,level,tags
+      AUTH_ACCESS_TTL: 4h
+    mem_limit: 768m
+  gateway-service:
+    volumes:
+    - ./gateway-service/target/gateway-service-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      JAVA_OPTS: -Xms128m -Xmx192m -XX:MaxDirectMemorySize=128m -Xlog:gc:stdout:time,level,tags
+      AUTH_ACCESS_TTL: 4h
+    mem_limit: 512m
+  realtime-gateway:
+    volumes:
+    - ./realtime-gateway/target/realtime-gateway-0.1.0-SNAPSHOT.jar:/app/app.jar:ro
+    environment:
+      JAVA_OPTS: -Xms128m -Xmx192m -XX:MaxDirectMemorySize=128m -Xlog:gc:stdout:time,level,tags
+      AUTH_ACCESS_TTL: 4h
+    mem_limit: 512m
+  web:
+    volumes:
+    - ./frontend/dist:/usr/share/nginx/html:ro
+    - ./frontend/nginx.conf:/etc/nginx/templates/default.conf.template:ro
