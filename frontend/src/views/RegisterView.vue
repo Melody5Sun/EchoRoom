@@ -35,14 +35,14 @@ async function submit() {
 <template>
   <main class="auth-page">
     <section class="auth-intro">
-      <p class="eyebrow">JOIN STREAMHUB</p>
+      <p class="eyebrow">JOIN ECHOROOM</p>
       <h1>找到你的下一场现场。</h1>
       <div class="hero-rule" />
       <p>创建账号，关注喜欢的主播，收藏值得回看的直播间。</p>
     </section>
     <section class="form-card surface" aria-labelledby="register-title">
       <p class="eyebrow">创建账号</p>
-      <h2 id="register-title">加入 StreamHub</h2>
+      <h2 id="register-title">加入 EchoRoom</h2>
       <p class="form-intro">注册后即可观看直播、发送弹幕并开始创作。</p>
       <NAlert v-if="error" type="error" :show-icon="false" class="form-alert">{{ error }}</NAlert>
       <NSpace vertical size="large">

@@ -1,5 +1,5 @@
 {
-  "name": "streamhub-load-tests",
+  "name": "echoroom-load-tests",
   "private": true,
   "type": "module",
   "dependencies": {

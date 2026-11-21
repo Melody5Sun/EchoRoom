@@ -21,10 +21,10 @@ services:
     depends_on: !reset {}
     environment:
       SPRING_PROFILES_ACTIVE: redis-sentinel
-      REDIS_SENTINEL_MASTER: streamhub
+      REDIS_SENTINEL_MASTER: echoroom
       REDIS_SENTINEL_NODES: sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
-      DB_URL: jdbc:mysql://mysql-router:6446/streamhub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
-      DB_USERNAME: streamhub
+      DB_URL: jdbc:mysql://mysql-router:6446/echoroom?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: echoroom
       DB_PASSWORD: ${HA_DB_PASSWORD:-ha-local-app}
       NACOS_SERVER_ADDR: nacos-1:8848,nacos-2:8848,nacos-3:8848
   user-service:
@@ -32,10 +32,10 @@ services:
     depends_on: !reset {}
     environment:
       SPRING_PROFILES_ACTIVE: redis-sentinel
-      REDIS_SENTINEL_MASTER: streamhub
+      REDIS_SENTINEL_MASTER: echoroom
       REDIS_SENTINEL_NODES: sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
-      DB_URL: jdbc:mysql://mysql-router:6446/streamhub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
-      DB_USERNAME: streamhub
+      DB_URL: jdbc:mysql://mysql-router:6446/echoroom?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: echoroom
       DB_PASSWORD: ${HA_DB_PASSWORD:-ha-local-app}
       NACOS_SERVER_ADDR: nacos-1:8848,nacos-2:8848,nacos-3:8848
   live-service:
@@ -43,10 +43,10 @@ services:
     depends_on: !reset {}
     environment:
       SPRING_PROFILES_ACTIVE: redis-sentinel
-      REDIS_SENTINEL_MASTER: streamhub
+      REDIS_SENTINEL_MASTER: echoroom
       REDIS_SENTINEL_NODES: sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
-      DB_URL: jdbc:mysql://mysql-router:6446/streamhub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
-      DB_USERNAME: streamhub
+      DB_URL: jdbc:mysql://mysql-router:6446/echoroom?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: echoroom
       DB_PASSWORD: ${HA_DB_PASSWORD:-ha-local-app}
       NACOS_SERVER_ADDR: nacos-1:8848,nacos-2:8848,nacos-3:8848
       ROCKETMQ_NAMESRV_ADDR: namesrv-1:9876;namesrv-2:9876
@@ -55,10 +55,10 @@ services:
     depends_on: !reset {}
     environment:
       SPRING_PROFILES_ACTIVE: redis-sentinel
-      REDIS_SENTINEL_MASTER: streamhub
+      REDIS_SENTINEL_MASTER: echoroom
       REDIS_SENTINEL_NODES: sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
-      DB_URL: jdbc:mysql://mysql-router:6446/streamhub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
-      DB_USERNAME: streamhub
+      DB_URL: jdbc:mysql://mysql-router:6446/echoroom?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: echoroom
       DB_PASSWORD: ${HA_DB_PASSWORD:-ha-local-app}
       NACOS_SERVER_ADDR: nacos-1:8848,nacos-2:8848,nacos-3:8848
   realtime-gateway:
@@ -66,10 +66,10 @@ services:
     depends_on: !reset {}
     environment:
       SPRING_PROFILES_ACTIVE: redis-sentinel
-      REDIS_SENTINEL_MASTER: streamhub
+      REDIS_SENTINEL_MASTER: echoroom
       REDIS_SENTINEL_NODES: sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
-      DB_URL: jdbc:mysql://mysql-router:6446/streamhub?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
-      DB_USERNAME: streamhub
+      DB_URL: jdbc:mysql://mysql-router:6446/echoroom?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USERNAME: echoroom
       DB_PASSWORD: ${HA_DB_PASSWORD:-ha-local-app}
       NACOS_SERVER_ADDR: nacos-1:8848,nacos-2:8848,nacos-3:8848
   web:
@@ -78,6 +78,6 @@ services:
       MEDIA_UPSTREAM: media-proxy:8080
       RTC_UPSTREAM: media-proxy:1985
 networks:
-  streamhub:
+  echoroom:
     external: true
-    name: streamhub-ha
+    name: echoroom-ha

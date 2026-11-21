@@ -20,7 +20,7 @@ if not old_jar.is_relative_to(root/'.tools') or not new_jar.is_file():
     parser.error('Use the historical artifact under ignored .tools and the built current artifact')
 suffix = secrets.token_hex(5)
 run = 'rollback-'+suffix
-schema = 'streamhub_rb_'+suffix
+schema = 'echoroom_rb_'+suffix
 db_user = 'rb_'+suffix
 db_password = secrets.token_urlsafe(24)
 redis_name = run+'-redis'
@@ -37,7 +37,7 @@ def docker(arguments, data=None, timeout=40):
 
 
 def sql(query):
-    return docker(['exec','-i','streamhub-ha-mysql-2-1','sh','-ec',
+    return docker(['exec','-i','echoroom-ha-mysql-2-1','sh','-ec',
         'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -h mysql-router -P 6446 -N -B'],
         f'USE {schema};\n'+query)
 
@@ -108,8 +108,8 @@ def reserve(user, label):
     return order
 
 
-source = json.loads(docker(['inspect','streamhub-live-service-1']))[0]
-db = json.loads(docker(['inspect','streamhub-ha-mysql-2-1']))[0]
+source = json.loads(docker(['inspect','echoroom-live-service-1']))[0]
+db = json.loads(docker(['inspect','echoroom-ha-mysql-2-1']))[0]
 network = next(iter(source['NetworkSettings']['Networks'].keys() & db['NetworkSettings']['Networks'].keys()))
 image = source['Config']['Image']
 env_path = results/(run+'.private.env')
@@ -119,8 +119,8 @@ settings = {
     'DB_USERNAME':db_user,'DB_PASSWORD':db_password,
     'REDIS_HOST':redis_name,'REDIS_PORT':'6379',
     'NACOS_DISCOVERY_ENABLED':'false','NACOS_CONFIG_ENABLED':'false','SPRING_CONFIG_IMPORT':'',
-    'STREAMHUB_RECONCILIATION_ENABLED':'false','STREAMHUB_REALTIME_CHANNEL':run,
-    'STREAMHUB_NODE_ID':run,'LIVE_DB_POOL_MAX_SIZE':'8','DB_POOL_MAX_SIZE':'8',
+    'ECHOROOM_RECONCILIATION_ENABLED':'false','ECHOROOM_REALTIME_CHANNEL':run,
+    'ECHOROOM_NODE_ID':run,'LIVE_DB_POOL_MAX_SIZE':'8','DB_POOL_MAX_SIZE':'8',
     'ROCKETMQ_NAMESRV_ADDR':'namesrv-1:9876;namesrv-2:9876',
     'ROCKETMQ_GIFT_TOPIC':'RB_GIFT_'+suffix,'ROCKETMQ_ACTIVITY_TOPIC':'RB_ACTIVITY_'+suffix,
     'ROCKETMQ_GIFT_PRODUCER_GROUP':run+'-gift-p','ROCKETMQ_ACTIVITY_PRODUCER_GROUP':run+'-activity-p',
@@ -129,14 +129,14 @@ settings = {
 }
 env_path.write_text(''.join(f'{key}={value}\n' for key,value in settings.items()),encoding='utf-8')
 try:
-    docker(['exec','-i','streamhub-ha-mysql-2-1','sh','-ec',
+    docker(['exec','-i','echoroom-ha-mysql-2-1','sh','-ec',
         'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -h mysql-router -P 6446'],
         f"CREATE DATABASE {schema}; CREATE USER '{db_user}'@'%' IDENTIFIED BY '{db_password}'; "
         f"GRANT ALL ON {schema}.* TO '{db_user}'@'%';")
     docker(['run','-d','--name',redis_name,'--network',network,'--memory','128m','redis:7.4-alpine'])
     for topic in (settings['ROCKETMQ_GIFT_TOPIC'],settings['ROCKETMQ_ACTIVITY_TOPIC']):
-        docker(['exec','streamhub-ha-namesrv-2-1','sh','mqadmin','updateTopic','-n','namesrv-2:9876',
-                '-c','StreamHubHA','-t',topic],timeout=30)
+        docker(['exec','echoroom-ha-namesrv-2-1','sh','mqadmin','updateTopic','-n','namesrv-2:9876',
+                '-c','EchoRoomHA','-t',topic],timeout=30)
     boot(old_jar,'old-v7')
     sql("""INSERT INTO live_room(id,anchor_id,title,status,stream_key_hash) VALUES(9001,1,'isolated rollback','LIVE','rollback');
         INSERT INTO wallet_account(user_id,balance) VALUES(1,0),(2,1000);

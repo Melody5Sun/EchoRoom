@@ -1,0 +1,366 @@
+package com.echoroom.live;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+
+import com.echoroom.common.api.BusinessException;
+import com.echoroom.common.api.ErrorCode;
+import com.echoroom.common.api.PageResult;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+@Service
+public class ActivityService {
+    private static final Logger log = LoggerFactory.getLogger(ActivityService.class);
+    private static final long STOCK_NOT_ENOUGH = -1L;
+    private static final long USER_ALREADY_JOINED = -2L;
+    private static final RedisScript<Long> RESERVE_SCRIPT = RedisScript.of(
+            "if redis.call('EXISTS', KEYS[3]) == 1 then return -3 end "
+                    + "local joined = redis.call('SISMEMBER', KEYS[2], ARGV[1]) "
+                    + "if joined == 1 then return -2 end "
+                    + "local stock = tonumber(redis.call('GET', KEYS[1]) or '-1') "
+                    + "if stock <= 0 then return -1 end "
+                    + "redis.call('DECR', KEYS[1]) "
+                    + "redis.call('SADD', KEYS[2], ARGV[1]) "
+                    + "local now = redis.call('TIME') "
+                    + "redis.call('HSET', KEYS[5], ARGV[1], ARGV[2] .. ':' .. now[1]) "
+                    + "return tonumber(redis.call('GET', KEYS[4]) or '0') + 1",
+            Long.class);
+    private static final RedisScript<Long> ROLLBACK_SCRIPT = RedisScript.of(
+            "if tonumber(redis.call('GET', KEYS[3]) or '0') + 1 ~= tonumber(ARGV[2]) then return 0 end "
+                    + "local owner = redis.call('HGET', KEYS[4], ARGV[1]) "
+                    + "if ARGV[3] ~= '' and (not owner or (owner ~= ARGV[3] and "
+                    + "string.sub(owner, 1, #ARGV[3] + 1) ~= ARGV[3] .. ':')) then return 0 end "
+                    + "redis.call('HDEL', KEYS[4], ARGV[1]) "
+                    + "local removed = redis.call('SREM', KEYS[2], ARGV[1]) "
+                    + "if removed == 1 then return redis.call('INCR', KEYS[1]) end "
+                    + "return 0",
+            Long.class);
+
+    private final ActivityRepository activityRepository;
+    private final InventoryRecovery inventoryRecovery;
+    private final ActivityOrderRepository activityOrderRepository;
+    private final LiveRoomRepository liveRoomRepository;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final RocketMqProperties rocketMqProperties;
+    private final MqOutboxRepository outboxRepository;
+    private final RoomWebSocketHandler roomWebSocketHandler;
+
+    public ActivityService(
+            ActivityRepository activityRepository, InventoryRecovery inventoryRecovery,
+            ActivityOrderRepository activityOrderRepository,
+            LiveRoomRepository liveRoomRepository,
+            StringRedisTemplate stringRedisTemplate,
+            RocketMqProperties rocketMqProperties,
+            MqOutboxRepository outboxRepository,
+            RoomWebSocketHandler roomWebSocketHandler) {
+        this.activityRepository = activityRepository;
+        this.inventoryRecovery = inventoryRecovery;
+        this.activityOrderRepository = activityOrderRepository;
+        this.liveRoomRepository = liveRoomRepository;
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.rocketMqProperties = rocketMqProperties;
+        this.outboxRepository = outboxRepository;
+        this.roomWebSocketHandler = roomWebSocketHandler;
+    }
+
+    @Transactional
+    public ActivityView create(
+            long roomId,
+            long userId,
+            String name,
+            int stock,
+            long unitPrice,
+            Instant startsAt,
+            Instant endsAt) {
+        LiveRoom room = liveRoomRepository.findById(roomId).orElseThrow(
+                () -> new BusinessException(ErrorCode.NOT_FOUND, "直播间不存在"));
+        if (room.anchorId() != userId) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只有主播可以创建本直播间活动");
+        }
+        if (!endsAt.isAfter(startsAt)) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "活动结束时间必须晚于开始时间");
+        }
+        long activityId = activityRepository.create(roomId, name.trim(), stock, unitPrice, startsAt, endsAt);
+        activityRepository.invalidate(activityId);
+        return view(activityRepository.findById(activityId).orElseThrow());
+    }
+
+    @Transactional
+    public ActivityView start(long activityId, long userId) {
+        Activity activity = findActivity(activityId);
+        LiveRoom room = liveRoomRepository.findById(activity.roomId()).orElseThrow(
+                () -> new BusinessException(ErrorCode.NOT_FOUND, "直播间不存在"));
+        if (room.anchorId() != userId) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只有主播可以启动本直播间活动");
+        }
+        if (!activityRepository.activate(activityId)) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "活动当前不能启动");
+        }
+        inventoryRecovery.rebuild(activityId);
+        return view(findActivity(activityId));
+    }
+
+    public ActivityView get(long activityId) {
+        return view(activityRepository.findCachedById(activityId).orElseThrow(
+            () -> new BusinessException(ErrorCode.NOT_FOUND, "活动不存在")));
+    }
+
+    public List<ActivityView> listByRoom(long roomId) {
+        liveRoomRepository.findById(roomId).orElseThrow(
+                () -> new BusinessException(ErrorCode.NOT_FOUND, "直播间不存在"));
+        return activityRepository.findByRoomId(roomId).stream().map(this::view).toList();
+    }
+
+    public PageResult<ActivityView> page(String status, int page, int pageSize) {
+        List<ActivityView> items = activityRepository.page(status, page, pageSize).stream().map(this::view).toList();
+        return PageResult.of(items, Math.max(1, page), Math.max(1, Math.min(pageSize, 100)), activityRepository.count(status));
+    }
+
+    @Transactional
+    public ActivityView stop(long activityId) {
+        Activity activity = findActivity(activityId);
+        activityRepository.stop(activityId);
+        stringRedisTemplate.delete(stockKey(activityId));
+        stringRedisTemplate.delete(userKey(activityId));
+        return view(activityRepository.findById(activity.id()).orElseThrow());
+    }
+
+    public void appendAudit(long operatorId, String action, String targetType, String targetId, String reason) {
+        activityRepository.appendAudit(operatorId, action, targetType, targetId, reason);
+    }
+
+    @Transactional
+    public ActivityOrderView seckill(long activityId, long userId, String clientOrderNo) {
+        Activity activity = activityRepository.findCachedById(activityId).orElseThrow(
+            () -> new BusinessException(ErrorCode.NOT_FOUND, "活动不存在"));
+        if (!"ACTIVE".equals(activity.status())) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "活动当前未开始");
+        }
+        Instant now = Instant.now();
+        if (now.isBefore(activity.startsAt()) || !now.isBefore(activity.endsAt())) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "活动不在进行时间内");
+        }
+        var existingOrder = activityOrderRepository.findByActivityAndUser(activityId, userId);
+        if (existingOrder.isPresent()) {
+            if ("PENDING".equals(existingOrder.get().status())) {
+                enqueueMessage("CREATE", existingOrder.get().orderNo(), 0);
+                enqueueMessage("CLOSE", existingOrder.get().orderNo(), rocketMqProperties.getTimeoutDelayLevel());
+                outboxRepository.requeue(activityOutboxKey("CREATE", existingOrder.get().orderNo()));
+                outboxRepository.requeue(activityOutboxKey("CLOSE", existingOrder.get().orderNo()));
+            }
+            return ActivityOrderView.from(existingOrder.get());
+        }
+
+        String reservationToken = java.util.UUID.randomUUID().toString();
+        Long remaining = stringRedisTemplate.execute(
+                RESERVE_SCRIPT,
+                List.of(stockKey(activityId), userKey(activityId), recoveryKey(activityId), epochKey(activityId), tokenKey(activityId)),
+                String.valueOf(userId), reservationToken);
+        if (remaining == null || remaining == -3L) throw new BusinessException(ErrorCode.UNAVAILABLE, "活动库存恢复中");
+        if (remaining == USER_ALREADY_JOINED) {
+            return activityOrderRepository.findByActivityAndUser(activityId, userId)
+                    .map(ActivityOrderView::from)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_ARGUMENT, "用户已经参与过活动"));
+        }
+        if (remaining == STOCK_NOT_ENOUGH) {
+            throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "活动库存不足");
+        }
+        registerReservationRollbackOnTransactionFailure(activityId, userId, remaining, reservationToken);
+        if (!activityRepository.reserve(activityId)) throw new BusinessException(ErrorCode.INVALID_ARGUMENT, "活动不可参与或库存不足");
+        String epoch = stringRedisTemplate.opsForValue().get(epochKey(activityId));
+        if ((epoch == null ? 0 : Long.parseLong(epoch)) + 1 != remaining)
+            throw new BusinessException(ErrorCode.UNAVAILABLE, "活动库存已恢复，请重试");
+
+        String orderNo = clientOrderNo.trim();
+        boolean created = activityOrderRepository.createPending(orderNo, activityId, userId);
+        if (!created) {
+            activityRepository.release(activityId);
+            rollbackReservation(activityId, userId, remaining, reservationToken);
+            return activityOrderRepository.findByOrderNo(orderNo)
+                    .or(() -> activityOrderRepository.findByActivityAndUser(activityId, userId))
+                    .filter(order -> order.activityId() == activityId && order.userId() == userId)
+                    .map(ActivityOrderView::from)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_ARGUMENT, "订单号已被使用"));
+        }
+
+        try {
+            enqueueMessage("CREATE", orderNo, 0);
+            enqueueMessage("CLOSE", orderNo, rocketMqProperties.getTimeoutDelayLevel());
+        } catch (RuntimeException exception) {
+            throw exception;
+        }
+        return activityOrderRepository.findByOrderNo(orderNo)
+                .map(ActivityOrderView::from)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INTERNAL_ERROR, "秒杀订单创建失败"));
+    }
+
+    public ActivityOrderView findOrder(String orderNo) {
+        return activityOrderRepository.findByOrderNo(orderNo)
+                .map(ActivityOrderView::from)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "活动订单不存在"));
+    }
+
+    public PageResult<ActivityOrderView> ordersForUser(long userId, int page, int pageSize) {
+        PageResult<ActivityOrder> result = activityOrderRepository.findByUserId(userId, page, pageSize);
+        return new PageResult<>(result.items().stream().map(ActivityOrderView::from).toList(), result.page(), result.pageSize(), result.total(), result.hasNext());
+    }
+
+    public int retryPending(Instant createdBefore, int limit) {
+        int retried = 0;
+        for (ActivityOrder order : activityOrderRepository.findPendingOlderThan(createdBefore, limit)) {
+            try {
+                enqueueMessage("CREATE", order.orderNo(), 0);
+                enqueueMessage("CLOSE", order.orderNo(), rocketMqProperties.getTimeoutDelayLevel());
+                outboxRepository.requeue(activityOutboxKey("CREATE", order.orderNo()));
+                outboxRepository.requeue(activityOutboxKey("CLOSE", order.orderNo()));
+                retried++;
+            } catch (RuntimeException exception) {
+                log.warn("补偿活动订单消息失败 orderNo={}", order.orderNo(), exception);
+            } catch (Exception exception) {
+                log.warn("补偿活动订单消息失败 orderNo={}", order.orderNo(), exception);
+            }
+        }
+        return retried;
+    }
+
+    public int reconcileActiveInventory() {
+        int repaired = 0;
+        for (Activity activity : activityRepository.findActive()) {
+            if (inventoryRecovery.reconcile(activity.id())) repaired++;
+        }
+        return repaired;
+    }
+
+    public boolean processCreate(String orderNo) {
+        boolean changed = activityOrderRepository.markSuccess(orderNo);
+        if (changed) {
+            activityOrderRepository.findByOrderNo(orderNo).ifPresent(order ->
+                    broadcastOrder(order, "SUCCESS"));
+        }
+        return changed;
+    }
+
+    @Transactional
+    public boolean processClose(String orderNo) {
+        var order = activityOrderRepository.findByOrderNo(orderNo);
+        if (order.isEmpty() || !activityOrderRepository.closeIfPending(orderNo)) {
+            return false;
+        }
+        activityRepository.release(order.get().activityId());
+        long observedEpoch;
+        try {
+            String epoch = stringRedisTemplate.opsForValue().get(epochKey(order.get().activityId()));
+            observedEpoch = (epoch == null ? 0 : Long.parseLong(epoch)) + 1;
+        } catch (RuntimeException ex) {
+            observedEpoch = -1;
+            log.warn("Redis unavailable; closed inventory will be reconciled orderNo={}", orderNo);
+        }
+        final long reservationEpoch = observedEpoch;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() {
+                if (reservationEpoch > 0) {
+                    try { rollbackReservation(order.get().activityId(), order.get().userId(), reservationEpoch, ""); }
+                    catch (RuntimeException ex) { log.warn("Closed reservation will be reconciled orderNo={}", orderNo, ex); }
+                }
+                activityOrderRepository.findByOrderNo(orderNo).ifPresent(closed -> broadcastOrder(closed, "CLOSED"));
+            }
+        });
+        return true;
+    }
+
+    private void enqueueMessage(String type, String orderNo, int delayLevel) {
+        outboxRepository.enqueue(
+                activityOutboxKey(type, orderNo),
+                rocketMqProperties.getActivityTopic(),
+                type,
+                orderNo,
+                type + "|" + orderNo,
+                delayLevel);
+    }
+
+    private String activityOutboxKey(String type, String orderNo) {
+        return "activity:" + type.toLowerCase() + ":" + orderNo;
+    }
+
+    private void rollbackReservation(long activityId, long userId, long epoch, String token) {
+        stringRedisTemplate.execute(ROLLBACK_SCRIPT,
+                List.of(stockKey(activityId), userKey(activityId), epochKey(activityId), tokenKey(activityId)),
+                String.valueOf(userId), String.valueOf(epoch), token);
+    }
+    private String tokenKey(long id) { return "activity:{" + id + "}:reservations"; }
+    private String epochKey(long id) { return "activity:{" + id + "}:epoch"; }
+    private String recoveryKey(long id) { return "activity:{" + id + "}:recovering"; }
+
+    private void registerReservationRollbackOnTransactionFailure(long activityId, long userId, long epoch, String token) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == TransactionSynchronization.STATUS_COMMITTED) {
+                    return;
+                }
+                try {
+                    rollbackReservation(activityId, userId, epoch, token);
+                } catch (RuntimeException exception) {
+                    log.error("数据库事务回滚后恢复 Redis 活动预占失败 activityId={} userId={}",
+                            activityId, userId, exception);
+                }
+            }
+        });
+    }
+
+    private void broadcastOrder(ActivityOrder order, String status) {
+        try {
+            roomWebSocketHandler.broadcastEvent(
+                    activityRepository.findById(order.activityId()).orElseThrow().roomId(),
+                    Map.of(
+                            "type", "ACTIVITY_ORDER",
+                            "orderNo", order.orderNo(),
+                            "activityId", order.activityId(),
+                            "userId", order.userId(),
+                            "status", status));
+        } catch (RuntimeException exception) {
+            // 订单状态已经持久化，实时通知失败由后续补偿处理。
+        }
+    }
+
+    private Activity findActivity(long activityId) {
+        return activityRepository.findById(activityId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "活动不存在"));
+    }
+
+    private ActivityView view(Activity activity) {
+        String remainingValue = stringRedisTemplate.opsForValue().get(stockKey(activity.id()));
+        int remainingStock = remainingValue == null ? activity.stock() : Integer.parseInt(remainingValue);
+        return new ActivityView(
+                activity.id(),
+                activity.roomId(),
+                activity.name(),
+                activity.stock(),
+                remainingStock,
+                activity.unitPrice(),
+                activity.status(),
+                activity.startsAt(),
+                activity.endsAt(),
+                activity.createdAt(),
+                activity.updatedAt());
+    }
+
+    private String stockKey(long activityId) {
+        return RedisKeys.activityStock(activityId);
+    }
+
+    private String userKey(long activityId) {
+        return RedisKeys.activityUsers(activityId);
+    }
+}

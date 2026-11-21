@@ -1,4 +1,4 @@
-name: StreamHub CI
+name: EchoRoom CI
 
 on:
   push:
@@ -27,7 +27,7 @@ jobs:
       - run: npm run test:e2e
         env:
           E2E_START_WEB: "true"
-      - run: docker build -t streamhub-web:ci .
+      - run: docker build -t echoroom-web:ci .
 
   backend:
     runs-on: ubuntu-latest

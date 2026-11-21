@@ -65,7 +65,7 @@ async function logout() {
       <NLayoutHeader bordered class="topbar">
         <div class="brand" role="button" tabindex="0" aria-label="返回发现" @click="router.push('/')" @keyup.enter="router.push('/')">
           <span class="brand-mark">S</span>
-          <span class="brand-name">StreamHub</span>
+          <span class="brand-name">EchoRoom</span>
         </div>
         <NMenu v-if="!isAuthPage" mode="horizontal" :value="activeMenu" :options="menuOptions" class="main-nav" @update:value="selectMenu" />
         <NSpace align="center" class="topbar-actions">

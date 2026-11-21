@@ -12,7 +12,7 @@ if (!$output.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase)) {throw 
 if (Test-Path -LiteralPath $output) {throw 'Refusing to overwrite resource samples'}
 if ($Minutes -lt 1 -or $Minutes -gt 180 -or $IntervalSeconds -lt 10 -or $IntervalSeconds -gt 60) {throw 'Invalid sampling bounds'}
 $deadline=[DateTime]::UtcNow.AddMinutes($Minutes)
-$query='{__name__=~"up|hikaricp_connections_pending|hikaricp_connections_active|streamhub_realtime_send_bytes|streamhub_mq_consumer_lag|streamhub_mq_outbox_oldest_age_seconds|streamhub_mq_outbox_pending|streamhub_traffic_inflight|jvm_memory_used_bytes|jvm_memory_committed_bytes|jvm_gc_pause_seconds_count|jvm_gc_pause_seconds_sum|process_cpu_usage|node_memory_MemAvailable_bytes|node_memory_MemTotal_bytes|mysql_global_status_threads_running|mysql_global_status_innodb_row_lock_waits|mysql_global_status_innodb_deadlocks|redis_memory_used_bytes|redis_connected_clients|redis_evicted_keys_total|redis_commands_processed_total"}'
+$query='{__name__=~"up|hikaricp_connections_pending|hikaricp_connections_active|echoroom_realtime_send_bytes|echoroom_mq_consumer_lag|echoroom_mq_outbox_oldest_age_seconds|echoroom_mq_outbox_pending|echoroom_traffic_inflight|jvm_memory_used_bytes|jvm_memory_committed_bytes|jvm_gc_pause_seconds_count|jvm_gc_pause_seconds_sum|process_cpu_usage|node_memory_MemAvailable_bytes|node_memory_MemTotal_bytes|mysql_global_status_threads_running|mysql_global_status_innodb_row_lock_waits|mysql_global_status_innodb_deadlocks|redis_memory_used_bytes|redis_connected_clients|redis_evicted_keys_total|redis_commands_processed_total"}'
 while ([DateTime]::UtcNow -lt $deadline) {
     $sample=@{utc=[DateTime]::UtcNow.ToString('o')}
     try {

@@ -1,4 +1,4 @@
-# StreamHub 项目面试准备稿
+# EchoRoom 项目面试准备稿
 
 依据：当前仓库代码、README、performance-baseline.md 和 fault-drills.md。个人职责按项目作者独立负责全栈开发描述。历史测试数字来自仓库已有记录，本次没有重新压测；不将本地演练描述为线上事故。技术方案比较是当前设计取舍分析，不代表曾经实际搭建并压测所有候选方案。
 
@@ -6,7 +6,7 @@
 
 **可直接口述：**
 
-StreamHub 是我独立开发的直播互动与虚拟礼物平台，主要面向观众、主播和运营人员。观众可以浏览直播间、观看直播、发弹幕、关注主播、送礼和参与限量活动；主播可以创建和管理直播间、查看收益和互动情况；运营人员可以进行内容治理、处理异常消息和查询审计记录。
+EchoRoom 是我独立开发的直播互动与虚拟礼物平台，主要面向观众、主播和运营人员。观众可以浏览直播间、观看直播、发弹幕、关注主播、送礼和参与限量活动；主播可以创建和管理直播间、查看收益和互动情况；运营人员可以进行内容治理、处理异常消息和查询审计记录。
 
 它解决的是直播场景中视频播放、实时互动和虚拟交易协同的问题。我的设计把音视频和业务互动分开：SRS 负责推流和播放，Java 服务负责身份、房间、弹幕、礼物、钱包及活动，避免视频流量直接占用业务服务资源。
 
@@ -170,7 +170,7 @@ Outbox 定时投递器
 
 ## 一分钟介绍
 
-StreamHub 是我独立完成全栈开发的直播互动与虚拟礼物项目，面向观众、主播和运营人员，覆盖观看、弹幕、关注、送礼、钱包和活动。我使用 Vue 3 与 TypeScript 开发前端，后端采用 Spring Boot，将 HTTP 网关和实时网关分开，SRS 负责媒体推流与播放。
+EchoRoom 是我独立完成全栈开发的直播互动与虚拟礼物项目，面向观众、主播和运营人员，覆盖观看、弹幕、关注、送礼、钱包和活动。我使用 Vue 3 与 TypeScript 开发前端，后端采用 Spring Boot，将 HTTP 网关和实时网关分开，SRS 负责媒体推流与播放。
 
 我重点实现了三条链路：弹幕先落 MySQL，再通过 Redis Pub/Sub 做多节点广播，断线后按消息 ID 补偿；送礼使用订单与 Outbox 同事务、RocketMQ 异步处理、钱包行锁和唯一流水保证业务幂等；活动使用 Redis Lua 预扣库存、MySQL 待处理订单和异步状态流转。
 
@@ -178,10 +178,10 @@ StreamHub 是我独立完成全栈开发的直播互动与虚拟礼物项目，�
 
 ## 代码与记录索引
 
-- 礼物交易：live-service/src/main/java/com/streamhub/live/GiftService.java、GiftOrderRepository.java、WalletRepository.java。
-- 秒杀预扣与状态流转：live-service/src/main/java/com/streamhub/live/ActivityService.java、ActivityOrderRepository.java。
-- 可靠投递：live-service/src/main/java/com/streamhub/live/MqOutboxRepository.java、MqOutboxDispatcher.java。
-- 多节点弹幕与在线状态：live-service/src/main/java/com/streamhub/live/RoomWebSocketHandler.java、RoomBroadcastService.java、OnlinePresenceService.java。
-- 鉴权：auth-service/src/main/java/com/streamhub/auth/AuthController.java；streamhub-gateway-support/src/main/java/com/streamhub/gateway/support/TokenAuthenticationFilter.java。
+- 礼物交易：live-service/src/main/java/com/echoroom/live/GiftService.java、GiftOrderRepository.java、WalletRepository.java。
+- 秒杀预扣与状态流转：live-service/src/main/java/com/echoroom/live/ActivityService.java、ActivityOrderRepository.java。
+- 可靠投递：live-service/src/main/java/com/echoroom/live/MqOutboxRepository.java、MqOutboxDispatcher.java。
+- 多节点弹幕与在线状态：live-service/src/main/java/com/echoroom/live/RoomWebSocketHandler.java、RoomBroadcastService.java、OnlinePresenceService.java。
+- 鉴权：auth-service/src/main/java/com/echoroom/auth/AuthController.java；echoroom-gateway-support/src/main/java/com/echoroom/gateway/support/TokenAuthenticationFilter.java。
 - 演练与指标：docs/performance-baseline.md、docs/fault-drills.md、load-tests/k6/seckill.js、load-tests/k6/websocket.js。
 - 注意：旧 interview-guide.md 和 sequences.md 部分描述早于 Outbox 实现；涉及订单创建时机、MQ 投递、WebSocket Ticket 时，以当前代码核对后的口径为准。

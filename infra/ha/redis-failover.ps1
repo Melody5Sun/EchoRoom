@@ -1,7 +1,7 @@
 param([int]$TimeoutSeconds=45)
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$compose=@('compose','-p','streamhub-ha','-f',"$root/docker-compose.infra-ha.yml",'--profile','*')
+$compose=@('compose','-p','echoroom-ha','-f',"$root/docker-compose.infra-ha.yml",'--profile','*')
 function Invoke-Redis([string]$Node,[string[]]$Arguments) {
     $result=& docker @compose exec -T $Node redis-cli --raw @Arguments
     if($LASTEXITCODE){throw "Redis command failed: $Node"}
@@ -15,14 +15,14 @@ foreach($name in @('redis-1','redis-2','redis-3')) {
     $addresses[$address]=$name
 }
 function Get-Primary {
-    $result=@(Invoke-Redis 'sentinel-1' @('-p','26379','SENTINEL','get-master-addr-by-name','streamhub'))
+    $result=@(Invoke-Redis 'sentinel-1' @('-p','26379','SENTINEL','get-master-addr-by-name','echoroom'))
     if($result.Count -ne 2){throw 'Unexpected Sentinel primary address'}
     if($result[0] -match '^redis-[123]$'){return $result[0]}
     if($addresses.ContainsKey($result[0])){return $addresses[$result[0]]}
     throw 'Sentinel returned a node outside this isolated rehearsal' 
 }
 $old=Get-Primary
-$key='streamhub:drill:'+ [guid]::NewGuid().ToString('N')
+$key='echoroom:drill:'+ [guid]::NewGuid().ToString('N')
 $nonce=[guid]::NewGuid().ToString('N')
 Invoke-Redis $old @('SET',$key,$nonce) | Out-Null
 if([int](Invoke-Redis $old @('WAIT','2','5000')) -ne 2){throw 'Both replicas must acknowledge the fixture before failover'}

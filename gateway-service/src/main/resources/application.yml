@@ -1,10 +1,10 @@
 spring:
   application:
-    name: streamhub-gateway
+    name: echoroom-gateway
   config:
     import:
-      - optional:nacos:streamhub-shared.yaml?group=${NACOS_CONFIG_GROUP:STREAMHUB}&refreshEnabled=true
-      - optional:nacos:${spring.application.name}.yaml?group=${NACOS_CONFIG_GROUP:STREAMHUB}&refreshEnabled=true
+      - optional:nacos:echoroom-shared.yaml?group=${NACOS_CONFIG_GROUP:ECHOROOM}&refreshEnabled=true
+      - optional:nacos:${spring.application.name}.yaml?group=${NACOS_CONFIG_GROUP:ECHOROOM}&refreshEnabled=true
   cloud:
     nacos:
       discovery:
@@ -25,7 +25,7 @@ spring:
           acquire-timeout: ${GATEWAY_POOL_ACQUIRE_TIMEOUT_MS:1000}
       routes:
         - id: auth-service
-          uri: lb://streamhub-auth
+          uri: lb://echoroom-auth
           predicates:
             - Path=/api/v1/auth/**
           filters:
@@ -39,7 +39,7 @@ spring:
                 name: authService
                 fallbackUri: forward:/fallback/auth
         - id: user-service
-          uri: lb://streamhub-user
+          uri: lb://echoroom-user
           predicates:
             - Path=/api/v1/users/**,/api/v1/ops/users/**
           filters:
@@ -48,7 +48,7 @@ spring:
                 name: userService
                 fallbackUri: forward:/fallback/user
         - id: live-service-api
-          uri: lb://streamhub-live
+          uri: lb://echoroom-live
           predicates:
             - Path=/api/v1/live/**,/api/v1/gifts,/api/v1/wallet/**,/api/v1/activities/**,/api/v1/gift-orders/**,/api/v1/activity-orders/**,/api/v1/ops/**
           filters:
@@ -63,9 +63,9 @@ spring:
       connect-timeout: ${REDIS_CONNECT_TIMEOUT:1s}
       timeout: ${REDIS_COMMAND_TIMEOUT:2s}
 
-streamhub:
+echoroom:
   cors:
-    allowed-origins: ${STREAMHUB_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8089}
+    allowed-origins: ${ECHOROOM_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8089}
   gateway:
     traffic-mode: ${GATEWAY_TRAFFIC_MODE:enforce}
     trusted-proxies: ${GATEWAY_TRUSTED_PROXIES:}
@@ -87,9 +87,9 @@ management:
     distribution:
       percentiles-histogram:
         http.server.requests: true
-        streamhub.realtime.send.duration: true
-        streamhub.wallet.lock.duration: true
-        streamhub.gift.transaction.duration: true
+        echoroom.realtime.send.duration: true
+        echoroom.wallet.lock.duration: true
+        echoroom.gift.transaction.duration: true
   endpoints:
     web:
       exposure:
@@ -134,5 +134,5 @@ spring:
   data:
     redis:
       sentinel:
-        master: ${REDIS_SENTINEL_MASTER:streamhub}
+        master: ${REDIS_SENTINEL_MASTER:echoroom}
         nodes: ${REDIS_SENTINEL_NODES:sentinel-1:26379,sentinel-2:26379,sentinel-3:26379}

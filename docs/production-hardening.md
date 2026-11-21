@@ -25,7 +25,7 @@ docker compose -f docker-compose.yml -f docker-compose.ha.yml up -d `
 
 `docker-compose.ha.yml` 移除这三个扩容服务的宿主机端口映射。前端 Nginx 通过 Docker DNS 解析两个网关的服务名。新请求可以解析到可用实例，已有 WebSocket 连接固定在原实例，节点摘除时由客户端重连。
 
-`STREAMHUB_NODE_ID` 现在是可读的实例基础名，进程启动时会自动追加随机 boot UUID，最终形成 `nodeId:bootId`。因此多个副本即使共享基础名，连接 member 也不会冲突；在编排平台中仍建议注入 Pod/Task 名称，方便日志和 Redis 数据排障。
+`ECHOROOM_NODE_ID` 现在是可读的实例基础名，进程启动时会自动追加随机 boot UUID，最终形成 `nodeId:bootId`。因此多个副本即使共享基础名，连接 member 也不会冲突；在编排平台中仍建议注入 Pod/Task 名称，方便日志和 Redis 数据排障。
 
 Compose 默认基础名为 `compose-live`，未配置时应用会优先使用容器 `HOSTNAME`，再回退为 `live`。同一实例重启后 boot UUID 会变化，旧连接只能等待 Presence TTL 清理，不会与新进程连接互相覆盖。
 
@@ -42,13 +42,13 @@ services:
       - ./skywalking-agent:/opt/skywalking:ro
     environment:
       SKYWALKING_AGENT_PATH: /opt/skywalking/skywalking-agent.jar
-      SW_AGENT_NAME: streamhub-live
+      SW_AGENT_NAME: echoroom-live
       SW_AGENT_COLLECTOR_BACKEND_SERVICES: oap:11800
 ```
 
 Agent JAR 和 Collector 地址由部署环境提供。通常还需要设置：
 
-- `SW_AGENT_NAME`：与服务名对应，例如 `streamhub-live`；
+- `SW_AGENT_NAME`：与服务名对应，例如 `echoroom-live`；
 - `SW_AGENT_COLLECTOR_BACKEND_SERVICES`：SkyWalking OAP 地址；
 - 为每个服务注入相同 Agent，但使用不同的服务名。
 

@@ -46,7 +46,7 @@ lag = []
 for row in good:
     groups = {}
     for item in row['metrics']:
-        if item['metric']['__name__'] == 'streamhub_mq_consumer_lag':
+        if item['metric']['__name__'] == 'echoroom_mq_consumer_lag':
             group = item['metric']['consumer_group']
             groups[group] = max(groups.get(group, 0), float(item['value'][1]))
     if groups:
@@ -61,12 +61,12 @@ print(json.dumps({
     'oldGenMiB': stats(old, 2**20),
     'hikariPending': stats(series('hikaricp_connections_pending', sum)),
     'hikariActive': stats(series('hikaricp_connections_active', sum)),
-    'sendBytes': stats(series('streamhub_realtime_send_bytes', sum)),
+    'sendBytes': stats(series('echoroom_realtime_send_bytes', sum)),
     # Both Live nodes expose the shared database's global count; do not sum them.
-    'outboxPending': stats(series('streamhub_mq_outbox_pending')),
-    'outboxOldestAgeSeconds': stats(series('streamhub_mq_outbox_oldest_age_seconds')),
+    'outboxPending': stats(series('echoroom_mq_outbox_pending')),
+    'outboxOldestAgeSeconds': stats(series('echoroom_mq_outbox_oldest_age_seconds')),
     'consumerLag': stats(lag),
-    'applicationTargetsUp': stats(series('up', sum, job='streamhub')),
+    'applicationTargetsUp': stats(series('up', sum, job='echoroom')),
     'mysqlThreadsRunning': stats(series('mysql_global_status_threads_running')),
     'mysqlRowLockWaitsDelta': waits[-1] - waits[0] if waits and waits[-1] >= waits[0] else None,
     'maximumSingleJvmCpuFraction': max(series('process_cpu_usage'), default=None),

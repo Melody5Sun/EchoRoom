@@ -6,7 +6,7 @@ export const i18n = createI18n({
   fallbackLocale: 'zh-CN',
   messages: {
     'zh-CN': {
-      appName: 'StreamHub',
+      appName: 'EchoRoom',
       nav: { discover: '发现', creator: '创作中心', profile: '个人中心', ops: '运营后台' },
     },
   },

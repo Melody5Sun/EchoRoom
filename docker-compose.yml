@@ -1,13 +1,13 @@
-name: streamhub
+name: echoroom
 
 services:
   mysql:
     image: mysql:8.4
     environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-streamhub}
-      MYSQL_USER: ${MYSQL_USER:-streamhub}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-streamhub}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-streamhub-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-echoroom}
+      MYSQL_USER: ${MYSQL_USER:-echoroom}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-echoroom}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-echoroom-root}
     ports:
       - "${MYSQL_PORT:-13306}:3306"
     volumes:
@@ -17,7 +17,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    networks: [streamhub]
+    networks: [echoroom]
 
   redis:
     image: redis:7.4-alpine
@@ -31,7 +31,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    networks: [streamhub]
+    networks: [echoroom]
 
   rocketmq-volume-init:
     image: apache/rocketmq:5.3.1
@@ -41,7 +41,7 @@ services:
       - rocketmq-namesrv-logs:/volumes/namesrv-logs
       - rocketmq-broker-logs:/volumes/broker-logs
       - rocketmq-broker-store:/volumes/broker-store
-    networks: [streamhub]
+    networks: [echoroom]
 
   rocketmq-namesrv:
     image: apache/rocketmq:5.3.1
@@ -53,7 +53,7 @@ services:
       - "9876:9876"
     volumes:
       - rocketmq-namesrv-logs:/home/rocketmq/logs
-    networks: [streamhub]
+    networks: [echoroom]
 
   rocketmq-broker:
     image: apache/rocketmq:5.3.1
@@ -73,7 +73,7 @@ services:
       - rocketmq-broker-logs:/home/rocketmq/logs
       - rocketmq-broker-store:/home/rocketmq/store
       - ./infra/rocketmq/broker.conf:/home/rocketmq/rocketmq-5.3.1/conf/broker.conf:ro
-    networks: [streamhub]
+    networks: [echoroom]
 
   nacos:
     image: nacos/nacos-server:v2.4.3
@@ -90,7 +90,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
-    networks: [streamhub]
+    networks: [echoroom]
 
   srs:
     image: ossrs/srs:6
@@ -100,7 +100,7 @@ services:
       - "1985:1985"
       - "8080:8080"
       - "8000:8000/udp"
-    networks: [streamhub]
+    networks: [echoroom]
 
   auth-service:
     build:
@@ -111,14 +111,14 @@ services:
     environment: &business-service-environment
       AUTH_DB_POOL_MAX_SIZE: ${AUTH_DB_POOL_MAX_SIZE:-10}
       AUTH_DB_POOL_MIN_IDLE: ${AUTH_DB_POOL_MIN_IDLE:-2}
-      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-streamhub}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&createDatabaseIfNotExist=true
-      DB_USERNAME: ${MYSQL_USER:-streamhub}
-      DB_PASSWORD: ${MYSQL_PASSWORD:-streamhub}
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-echoroom}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&createDatabaseIfNotExist=true
+      DB_USERNAME: ${MYSQL_USER:-echoroom}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-echoroom}
       REDIS_HOST: redis
       NACOS_SERVER_ADDR: nacos:8848
       NACOS_DISCOVERY_ENABLED: "true"
       NACOS_CONFIG_ENABLED: "true"
-      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-STREAMHUB}
+      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-ECHOROOM}
     ports:
       - "${AUTH_SERVICE_PORT:-8081}:8081"
     depends_on:
@@ -135,7 +135,7 @@ services:
       retries: 18
       start_period: 30s
     restart: unless-stopped
-    networks: [streamhub]
+    networks: [echoroom]
 
   user-service:
     build:
@@ -161,7 +161,7 @@ services:
       retries: 18
       start_period: 30s
     restart: unless-stopped
-    networks: [streamhub]
+    networks: [echoroom]
 
   live-service:
     build:
@@ -173,7 +173,7 @@ services:
       <<: *business-service-environment
       LIVE_DB_POOL_MAX_SIZE: ${LIVE_DB_POOL_MAX_SIZE:-20}
       LIVE_DB_POOL_MIN_IDLE: ${LIVE_DB_POOL_MIN_IDLE:-2}
-      STREAMHUB_TRAFFIC_MAX_INFLIGHT: ${STREAMHUB_TRAFFIC_MAX_INFLIGHT:-128}
+      ECHOROOM_TRAFFIC_MAX_INFLIGHT: ${ECHOROOM_TRAFFIC_MAX_INFLIGHT:-128}
       SECKILL_USER_RATE: ${SECKILL_USER_RATE:-2}
       SECKILL_USER_BURST: ${SECKILL_USER_BURST:-4}
       SECKILL_ACTIVITY_RATE: ${SECKILL_ACTIVITY_RATE:-100}
@@ -186,19 +186,19 @@ services:
       CHAT_USER_BURST: ${CHAT_USER_BURST:-5}
       CHAT_ROOM_RATE: ${CHAT_ROOM_RATE:-100}
       CHAT_ROOM_BURST: ${CHAT_ROOM_BURST:-200}
-      STREAMHUB_CACHE_ENABLED: ${STREAMHUB_CACHE_ENABLED:-true}
-      STREAMHUB_CACHE_TTL_SECONDS: ${STREAMHUB_CACHE_TTL_SECONDS:-30}
-      STREAMHUB_CACHE_MAX_LOADERS: ${STREAMHUB_CACHE_MAX_LOADERS:-16}
-      STREAMHUB_UNSUBSCRIBE_DELAY_MS: ${STREAMHUB_UNSUBSCRIBE_DELAY_MS:-30000}
-      STREAMHUB_MAX_SESSIONS: ${STREAMHUB_MAX_SESSIONS:-20000}
-      STREAMHUB_ASYNC_SEND: ${STREAMHUB_ASYNC_SEND:-true}
-      STREAMHUB_SEND_THREADS: ${STREAMHUB_SEND_THREADS:-16}
-      STREAMHUB_SEND_QUEUE_MESSAGES: ${STREAMHUB_SEND_QUEUE_MESSAGES:-256}
-      STREAMHUB_SEND_QUEUE_BYTES: ${STREAMHUB_SEND_QUEUE_BYTES:-262144}
-      STREAMHUB_SEND_NODE_BYTES: ${STREAMHUB_SEND_NODE_BYTES:-67108864}
-      STREAMHUB_SEND_TIMEOUT_MS: ${STREAMHUB_SEND_TIMEOUT_MS:-5000}
-      STREAMHUB_TRAFFIC_MODE: ${STREAMHUB_TRAFFIC_MODE:-enforce}
-      STREAMHUB_REALTIME_CHANNEL_MODE: ${STREAMHUB_REALTIME_CHANNEL_MODE:-room}
+      ECHOROOM_CACHE_ENABLED: ${ECHOROOM_CACHE_ENABLED:-true}
+      ECHOROOM_CACHE_TTL_SECONDS: ${ECHOROOM_CACHE_TTL_SECONDS:-30}
+      ECHOROOM_CACHE_MAX_LOADERS: ${ECHOROOM_CACHE_MAX_LOADERS:-16}
+      ECHOROOM_UNSUBSCRIBE_DELAY_MS: ${ECHOROOM_UNSUBSCRIBE_DELAY_MS:-30000}
+      ECHOROOM_MAX_SESSIONS: ${ECHOROOM_MAX_SESSIONS:-20000}
+      ECHOROOM_ASYNC_SEND: ${ECHOROOM_ASYNC_SEND:-true}
+      ECHOROOM_SEND_THREADS: ${ECHOROOM_SEND_THREADS:-16}
+      ECHOROOM_SEND_QUEUE_MESSAGES: ${ECHOROOM_SEND_QUEUE_MESSAGES:-256}
+      ECHOROOM_SEND_QUEUE_BYTES: ${ECHOROOM_SEND_QUEUE_BYTES:-262144}
+      ECHOROOM_SEND_NODE_BYTES: ${ECHOROOM_SEND_NODE_BYTES:-67108864}
+      ECHOROOM_SEND_TIMEOUT_MS: ${ECHOROOM_SEND_TIMEOUT_MS:-5000}
+      ECHOROOM_TRAFFIC_MODE: ${ECHOROOM_TRAFFIC_MODE:-enforce}
+      ECHOROOM_REALTIME_CHANNEL_MODE: ${ECHOROOM_REALTIME_CHANNEL_MODE:-room}
       ROCKETMQ_NAMESRV_ADDR: rocketmq-namesrv:9876
       ROCKETMQ_CONSUME_THREAD_MIN: ${ROCKETMQ_CONSUME_THREAD_MIN:-4}
       ROCKETMQ_CONSUME_THREAD_MAX: ${ROCKETMQ_CONSUME_THREAD_MAX:-8}
@@ -206,7 +206,7 @@ services:
       ROCKETMQ_MAX_RECONSUME_TIMES: ${ROCKETMQ_MAX_RECONSUME_TIMES:-5}
       ROCKETMQ_PRODUCER_RETRY_TIMES: ${ROCKETMQ_PRODUCER_RETRY_TIMES:-2}
       ROCKETMQ_DEAD_LETTER_ENABLED: ${ROCKETMQ_DEAD_LETTER_ENABLED:-true}
-      ROCKETMQ_DEAD_LETTER_CONSUMER_GROUP: ${ROCKETMQ_DEAD_LETTER_CONSUMER_GROUP:-streamhub-dead-letter-auditor}
+      ROCKETMQ_DEAD_LETTER_CONSUMER_GROUP: ${ROCKETMQ_DEAD_LETTER_CONSUMER_GROUP:-echoroom-dead-letter-auditor}
       ROCKETMQ_OUTBOX_ENABLED: ${ROCKETMQ_OUTBOX_ENABLED:-true}
       ROCKETMQ_OUTBOX_BATCH_SIZE: ${ROCKETMQ_OUTBOX_BATCH_SIZE:-100}
       ROCKETMQ_OUTBOX_MAX_ATTEMPTS: ${ROCKETMQ_OUTBOX_MAX_ATTEMPTS:-20}
@@ -215,7 +215,7 @@ services:
       ROCKETMQ_METRICS_REFRESH_MS: ${ROCKETMQ_METRICS_REFRESH_MS:-15000}
       ROCKETMQ_LAG_MONITOR_INITIAL_DELAY_MS: ${ROCKETMQ_LAG_MONITOR_INITIAL_DELAY_MS:-15000}
       ROCKETMQ_LAG_MONITOR_FIXED_DELAY_MS: ${ROCKETMQ_LAG_MONITOR_FIXED_DELAY_MS:-15000}
-      STREAMHUB_NODE_ID: ${STREAMHUB_NODE_ID:-compose-live}
+      ECHOROOM_NODE_ID: ${ECHOROOM_NODE_ID:-compose-live}
       MEDIA_RTMP_PUBLISH_BASE: ${MEDIA_RTMP_PUBLISH_BASE:-rtmp://localhost:1935/live/}
       MEDIA_HTTP_FLV_PLAY_BASE: ${MEDIA_HTTP_FLV_PLAY_BASE:-/live/}
       MEDIA_WEBRTC_PLAY_BASE: ${MEDIA_WEBRTC_PLAY_BASE:-/rtc/v1/whep/?app=live&stream=}
@@ -237,7 +237,7 @@ services:
       retries: 18
       start_period: 45s
     restart: unless-stopped
-    networks: [streamhub]
+    networks: [echoroom]
 
   gateway-service:
     build:
@@ -253,10 +253,10 @@ services:
       NACOS_SERVER_ADDR: nacos:8848
       NACOS_DISCOVERY_ENABLED: "true"
       NACOS_CONFIG_ENABLED: "true"
-      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-STREAMHUB}
+      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-ECHOROOM}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      STREAMHUB_ALLOWED_ORIGINS: ${STREAMHUB_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8089}
+      ECHOROOM_ALLOWED_ORIGINS: ${ECHOROOM_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8089}
     ports:
       - "${GATEWAY_SERVICE_PORT:-8088}:8088"
     depends_on:
@@ -275,7 +275,7 @@ services:
       retries: 12
       start_period: 20s
     restart: unless-stopped
-    networks: [streamhub]
+    networks: [echoroom]
 
   realtime-gateway:
     build:
@@ -291,10 +291,10 @@ services:
       NACOS_SERVER_ADDR: nacos:8848
       NACOS_DISCOVERY_ENABLED: "true"
       NACOS_CONFIG_ENABLED: "true"
-      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-STREAMHUB}
+      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-ECHOROOM}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      STREAMHUB_ALLOWED_ORIGINS: ${STREAMHUB_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8089}
+      ECHOROOM_ALLOWED_ORIGINS: ${ECHOROOM_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:8089}
     ports:
       - "${REALTIME_GATEWAY_PORT:-8090}:8090"
     depends_on:
@@ -311,7 +311,7 @@ services:
       retries: 12
       start_period: 20s
     restart: unless-stopped
-    networks: [streamhub]
+    networks: [echoroom]
 
   web:
     build:
@@ -333,14 +333,14 @@ services:
       srs:
         condition: service_started
     restart: unless-stopped
-    networks: [streamhub]
+    networks: [echoroom]
 
   minio:
     image: minio/minio:RELEASE.2024-06-13T22-53-53Z
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-streamhub}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-streamhub-minio}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-echoroom}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-echoroom-minio}
     ports:
       - "19000:9000"
       - "19001:9001"
@@ -351,7 +351,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
-    networks: [streamhub]
+    networks: [echoroom]
 
   prometheus:
     restart: unless-stopped
@@ -365,7 +365,7 @@ services:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./infra/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus-data:/prometheus
-    networks: [streamhub]
+    networks: [echoroom]
 
   grafana:
     restart: unless-stopped
@@ -374,7 +374,7 @@ services:
       - prometheus
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-streamhub-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-echoroom-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
@@ -382,7 +382,7 @@ services:
       - grafana-data:/var/lib/grafana
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
-    networks: [streamhub]
+    networks: [echoroom]
 
 volumes:
   mysql-data:
@@ -396,5 +396,5 @@ volumes:
   grafana-data:
 
 networks:
-  streamhub:
+  echoroom:
     driver: bridge

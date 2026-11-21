@@ -1,6 +1,6 @@
-# StreamHub
+# EchoRoom
 
-StreamHub 是一个面向高并发场景的直播互动与虚拟礼物平台，采用 Spring Boot 微服务架构实现用户、认证、直播间、弹幕、礼物、钱包和活动等业务能力。
+EchoRoom 是一个面向高并发场景的直播互动与虚拟礼物平台，采用 Spring Boot 微服务架构实现用户、认证、直播间、弹幕、礼物、钱包和活动等业务能力。
 
 项目的核心设计是将“音视频媒体面”和“业务互动面”拆开：SRS 负责推流与播放，Java 服务负责控制面、实时互动和交易业务。项目重点覆盖了多节点 WebSocket 广播、虚拟礼物幂等、秒杀削峰、故障补偿和可观测性等面试中常见的分布式系统问题。
 
@@ -55,14 +55,14 @@ API Gateway 负责 HTTP 路由、Token 鉴权、CORS、限流和熔断；Realtim
 ### 4. 项目结构
 
 ~~~text
-StreamHub/
+EchoRoom/
 ├── auth-service/              # 认证与会话
 ├── user-service/              # 用户与关注关系
 ├── live-service/              # 直播互动、礼物、钱包、活动
 ├── gateway-service/           # HTTP API Gateway
 ├── realtime-gateway/          # WebSocket Gateway
-├── streamhub-common/          # 公共响应、异常、TraceId 等
-├── streamhub-gateway-support/ # 网关鉴权、限流、CORS、TraceId 和客户端配置
+├── echoroom-common/          # 公共响应、异常、TraceId 等
+├── echoroom-gateway-support/ # 网关鉴权、限流、CORS、TraceId 和客户端配置
 ├── database-migrations/       # Flyway 数据库迁移
 ├── frontend/                  # Vue 3 前端
 ├── infra/                     # 基础设施配置和 HA 演练脚本
@@ -114,7 +114,7 @@ WebSocket 连接只保存在当前 Live 节点的内存注册表中。弹幕处�
 
 - 房间级 `live:room:{roomId}:online` 以 `userId` 为 member，用于统计去重在线用户。
 - 用户级 `live:room:{roomId}:user:<userId>:connections` 以 `nodeId:bootId:connectionId` 为 member，用于区分多节点、多标签页连接。
-- `STREAMHUB_NODE_ID` 是便于排障的实例基础名，进程启动时会自动追加 boot UUID；即使多个副本使用相同基础名，连接 member 也不会冲突。
+- `ECHOROOM_NODE_ID` 是便于排障的实例基础名，进程启动时会自动追加 boot UUID；即使多个副本使用相同基础名，连接 member 也不会冲突。
 - 心跳 Lua 原子更新两层 ZSet；关闭一条连接时，只有该用户不存在其他有效连接，才会从房间在线 ZSet 移除。
 
 房间 Key 中的 `{roomId}` 是实际 Redis Hash Tag，不是文档占位符，保证两层 ZSet 在 Redis Cluster 下位于同一个 Slot。
@@ -236,7 +236,7 @@ docker compose logs -f gateway-service live-service realtime-gateway
 | http://localhost:8090 | Realtime Gateway，WebSocket 接入 |
 | http://localhost:8848/nacos | Nacos 控制台 |
 | http://localhost:9090 | Prometheus |
-| http://localhost:3000 | Grafana，默认账号 admin，密码 streamhub-admin |
+| http://localhost:3000 | Grafana，默认账号 admin，密码 echoroom-admin |
 | http://localhost:19001 | MinIO 控制台，S3 API 使用 19000 |
 | localhost:13306 | MySQL 宿主机端口 |
 | localhost:6379 | Redis |
@@ -246,9 +246,9 @@ docker compose logs -f gateway-service live-service realtime-gateway
 | localhost:8080 | SRS HTTP-FLV/HLS |
 | localhost:8000/udp | SRS WebRTC UDP |
 
-端口、本地凭据以及 RocketMQ 消费线程、最大重试次数、Outbox 调度等参数可在 .env 中覆盖，完整示例见 [.env.example](.env.example)。`STREAMHUB_NODE_ID` 是 Live 实例的可读基础名，运行时还会追加随机 boot UUID。数据库迁移会在业务服务启动时由 Flyway 自动执行。
+端口、本地凭据以及 RocketMQ 消费线程、最大重试次数、Outbox 调度等参数可在 .env 中覆盖，完整示例见 [.env.example](.env.example)。`ECHOROOM_NODE_ID` 是 Live 实例的可读基础名，运行时还会追加随机 boot UUID。数据库迁移会在业务服务启动时由 Flyway 自动执行。
 
-如果前后端分域部署，需要将生产前端域名配置到 `STREAMHUB_ALLOWED_ORIGINS`；默认值仅包含本地 Vite 和前端 Nginx 地址。Gateway 的限流、超时、数据库连接池和 Redis 连接池参数也都可以通过 `.env` 覆盖。
+如果前后端分域部署，需要将生产前端域名配置到 `ECHOROOM_ALLOWED_ORIGINS`；默认值仅包含本地 Vite 和前端 Nginx 地址。Gateway 的限流、超时、数据库连接池和 Redis 连接池参数也都可以通过 `.env` 覆盖。
 
 ### 3. 快速验证服务
 
@@ -272,7 +272,7 @@ $headers = @{ Authorization = "Bearer $token" }
 创建并开始直播间：
 
 ~~~powershell
-$roomBody = @{ title = 'StreamHub Demo'; category = 'tech' } | ConvertTo-Json
+$roomBody = @{ title = 'EchoRoom Demo'; category = 'tech' } | ConvertTo-Json
 $room = Invoke-RestMethod http://localhost:8088/api/v1/live/rooms -Method Post -Headers $headers -ContentType 'application/json' -Body $roomBody
 $roomId = $room.data.id
 Invoke-RestMethod "http://localhost:8088/api/v1/live/rooms/$roomId/start" -Method Post -Headers $headers
@@ -310,7 +310,7 @@ npm run dev
 
 前端开发地址默认为 http://localhost:5173，Vite 会将 /api、/ws、/live 和 /rtc 代理到本机的网关或 SRS 端口。可通过 VITE_DEV_API_TARGET、VITE_DEV_REALTIME_TARGET、VITE_DEV_MEDIA_TARGET 和 VITE_DEV_RTC_TARGET 覆盖代理地址。
 
-开发环境通过 Vite 代理避免跨域；生产环境建议使用前端 Nginx 的同源 `/api` 和 `/ws` 入口，若必须跨域则配置 `STREAMHUB_ALLOWED_ORIGINS`，不要使用通配来源。
+开发环境通过 Vite 代理避免跨域；生产环境建议使用前端 Nginx 的同源 `/api` 和 `/ws` 入口，若必须跨域则配置 `ECHOROOM_ALLOWED_ORIGINS`，不要使用通配来源。
 
 ### 5. 测试与构建
 

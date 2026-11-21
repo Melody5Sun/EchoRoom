@@ -41,7 +41,7 @@
 
 ## 本机运行续验
 
-- 第一笔实现提交：c3a8428。Docker 29.7.2、16 vCPU、约 7.4 GiB；仅操作 StreamHub 容器，无关 PostgreSQL 未改动。
+- 第一笔实现提交：c3a8428。Docker 29.7.2、16 vCPU、约 7.4 GiB；仅操作 EchoRoom 容器，无关 PostgreSQL 未改动。
 - MySQL Router 单主故障：6101ms 恢复可写，原节点回归 ONLINE，前后探针数据一致。完全停机后，AdminAPI 选择 GTID 最先进节点安全恢复，没有 force 或删除 metadata。
 - Redis Sentinel 单主故障：初轮在并行 Clone 负载下发生 TILT，约 44.9s；空闲复测 8481ms，旧主回归副本、数据和新写入均保留。固定 IP 消除了停止容器引发的 DNS 阻塞。
 - 三 Nacos、三 Controller、双 Broker、双 NameServer 和双 SRS 已启动；MQ 双副本消息探针返回 SEND_OK。
@@ -60,7 +60,7 @@
 ## Docker 恢复后的门禁
 
 - 经用户授权重启 Docker。普通重启卡在 stopping；定向终止 docker-desktop 后，发现 Windows 遗留零字节 socket 使 Desktop 启动失败。将两个仅含临时通信文件的运行时目录保留为 recovery 备份后，引擎恢复；未删除镜像、数据卷或业务数据，无关 PostgreSQL 已自动恢复运行。
-- 停止 StreamHub 应用和 HA 环境后单独执行集成门禁。2026-11-02 13:07 完成，全部 36 项通过，4 项 Docker 集成测试实际执行、零跳过，耗时约 47 秒。
+- 停止 EchoRoom 应用和 HA 环境后单独执行集成门禁。2026-11-02 13:07 完成，全部 36 项通过，4 项 Docker 集成测试实际执行、零跳过，耗时约 47 秒。
 - 两个网关的修复后产物已重新 package 成功。以后本机先运行测试再启动完整 HA 环境，避免额外测试数据库与整个集群同时争用资源。
 - 网络重建演练发现 Redis 固定地址可能被动态 Controller 占用，已将动态池限定为 .128/25；新网络实际 inspect 确认生效，MySQL 三节点恢复 ONLINE，业务数据保留。
 - 恢复短时检查运行双 Gateway、双 Realtime、双 Live；受 Docker 7.4GiB 内存限制，暂时停止 Nacos1 和 Controller3，仍有多数派。NameServer1 冷启动期间曾被停用，导致一个 Live 的 MQ 初始化失败；恢复 NameServer 后手动重启该 Live，两实例均健康。这不是完整冗余拓扑的容量测试；生产需配置应用存活探针及失败实例重启。

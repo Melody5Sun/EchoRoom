@@ -19,7 +19,7 @@ if not fixture_path.is_relative_to(results):
 fixture = json.loads(fixture_path.read_text(encoding='utf-8-sig'))
 base = fixture['baseUrl']
 if base not in ('http://localhost:8089','http://127.0.0.1:8089'):
-    parser.error('Only the local streamhub-ha rehearsal can be faulted')
+    parser.error('Only the local echoroom-ha rehearsal can be faulted')
 sender = fixture['participants'][0]
 anchor = fixture['anchor']
 room = int(fixture['roomId'])
@@ -27,8 +27,8 @@ run = 'mysql-inflight-'+uuid.uuid4().hex[:10]
 order = run+'-gift'
 report = {'run':run,'order':order,'passed':False}
 output = results / (run+'.json')
-compose = ['docker','compose','-p','streamhub-ha','-f',str(root/'docker-compose.infra-ha.yml')]
-mysql = ['sh','-ec','MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -h mysql-router -P 6446 -N -B --unbuffered streamhub']
+compose = ['docker','compose','-p','echoroom-ha','-f',str(root/'docker-compose.infra-ha.yml')]
+mysql = ['sh','-ec','MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -h mysql-router -P 6446 -N -B --unbuffered echoroom']
 
 
 def sql(query):
@@ -84,7 +84,7 @@ try:
         locks = wait_for(lambda: sql(f"""SELECT COUNT(*) FROM performance_schema.data_lock_waits w
             JOIN performance_schema.data_locks b ON b.ENGINE_LOCK_ID=w.BLOCKING_ENGINE_LOCK_ID
             JOIN performance_schema.threads t ON t.THREAD_ID=b.THREAD_ID
-            WHERE b.OBJECT_SCHEMA='streamhub' AND b.OBJECT_NAME='wallet_account'
+            WHERE b.OBJECT_SCHEMA='echoroom' AND b.OBJECT_NAME='wallet_account'
               AND t.PROCESSLIST_INFO='{marker}';""") != '0',
             15,'Consumer did not enter a wallet lock wait')
         report['walletLockWaitVerified'] = bool(locks)

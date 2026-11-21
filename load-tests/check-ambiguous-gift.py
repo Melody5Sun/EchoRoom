@@ -15,9 +15,9 @@ account = fixture['participants'][0]
 anchor = fixture['anchor']
 run = 'ambiguous-' + uuid.uuid4().hex[:10]
 results = root / 'load-tests/results'
-command = ['docker', 'compose', '-p', 'streamhub-ha', '-f', str(root / 'docker-compose.infra-ha.yml'),
+command = ['docker', 'compose', '-p', 'echoroom-ha', '-f', str(root / 'docker-compose.infra-ha.yml'),
     'exec', '-T', 'mysql-2', 'sh', '-ec',
-    'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -h mysql-router -P 6446 --unbuffered -N -B streamhub']
+    'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -h mysql-router -P 6446 --unbuffered -N -B echoroom']
 
 def sql(query):
     return subprocess.run(command, input=query, text=True, capture_output=True, check=True, timeout=25).stdout.strip()

@@ -1,4 +1,4 @@
-# StreamHub 故障演练手册
+# EchoRoom 故障演练手册
 
 本文档提供可重复的本地演练步骤。每次演练先记录 Git commit、Java 参数、Docker 资源、测试用户、房间、活动和开始时间，再执行故障注入。
 
@@ -36,12 +36,12 @@ Invoke-RestMethod http://localhost:8083/actuator/health
 关键指标：
 
 ~~~text
-streamhub_mq_consumer_lag
-streamhub_mq_outbox_pending
-streamhub_mq_outbox_failed
-streamhub_mq_outbox_oldest_age_seconds
-streamhub_mq_deadletter_new
-streamhub_mq_consume_total
+echoroom_mq_consumer_lag
+echoroom_mq_outbox_pending
+echoroom_mq_outbox_failed
+echoroom_mq_outbox_oldest_age_seconds
+echoroom_mq_deadletter_new
+echoroom_mq_consume_total
 ~~~
 
 运营接口需要 OPERATOR 或 ADMIN 权限：
@@ -76,7 +76,7 @@ POST /api/v1/ops/mq/outbox/{id}/retry
 
 ## 服务重启和 WebSocket 节点摘除
 
-1. 启动两个 Live 实例和两个 Realtime Gateway 实例，使用不同的 STREAMHUB_NODE_ID 和端口；运行时还会追加进程启动 UUID。
+1. 启动两个 Live 实例和两个 Realtime Gateway 实例，使用不同的 ECHOROOM_NODE_ID 和端口；运行时还会追加进程启动 UUID。
 2. 让同一用户在两个 Live 节点分别建立连接，确认房间在线人数只增加 1，用户连接 ZSet 中存在两个不同 member。
 3. 关闭其中一条连接，确认用户仍在线；关闭最后一条连接后，确认用户从房间在线 ZSet 移除。
 4. 建立连接后停止发送心跳，确认客户端 45 秒无 ACK 后主动重连，服务端在 75 秒超时加 15 秒扫描窗口内关闭僵尸连接。

@@ -5,19 +5,19 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.streamhub</groupId>
-        <artifactId>streamhub</artifactId>
+        <groupId>com.echoroom</groupId>
+        <artifactId>echoroom</artifactId>
         <version>0.1.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>realtime-gateway</artifactId>
     <name>realtime-gateway</name>
-    <description>StreamHub dedicated WebSocket gateway</description>
+    <description>EchoRoom dedicated WebSocket gateway</description>
 
     <dependencies>
         <dependency>
-            <groupId>com.streamhub</groupId>
-            <artifactId>streamhub-gateway-support</artifactId>
+            <groupId>com.echoroom</groupId>
+            <artifactId>echoroom-gateway-support</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

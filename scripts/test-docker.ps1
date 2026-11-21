@@ -18,7 +18,7 @@ try {
     if($LASTEXITCODE){throw "Maven failed: $LASTEXITCODE"}
     $executed=0
     foreach($name in @('InventoryConsistencyIntegrationTest','OnlinePresenceServiceRedisIntegrationTest','TrafficGuardRedisIntegrationTest','ChannelMigrationRedisIntegrationTest','OutboxRecoveryIntegrationTest','MigrationRollbackIntegrationTest')){
-        $file=Join-Path $root "live-service/target/surefire-reports/TEST-com.streamhub.live.$name.xml"
+        $file=Join-Path $root "live-service/target/surefire-reports/TEST-com.echoroom.live.$name.xml"
         if(!(Test-Path $file) -or (Get-Item $file).LastWriteTimeUtc -lt $started){throw "Missing fresh integration report: $name"}
         [xml]$report=Get-Content $file -Raw
         if([int]$report.testsuite.skipped -gt 0 -or [int]$report.testsuite.failures -gt 0 -or [int]$report.testsuite.errors -gt 0){throw "Integration suite did not execute successfully: $name"}

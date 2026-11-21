@@ -12,7 +12,7 @@ const WebSocket=require('ws');
 const execute=promisify(execFile);
 const fixture=JSON.parse(readFileSync(path.join(root,'load-tests/results/fixture.json'),'utf8'));
 if(fixture.baseUrl!=='http://localhost:8089')throw new Error('Local isolated rehearsal only');
-const run='admission-user-'+randomUUID().slice(0,8), target='streamhub-user-service-1';
+const run='admission-user-'+randomUUID().slice(0,8), target='echoroom-user-service-1';
 const report={run,passed:false};const sockets=[];
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function docker(...args){return (await execute('docker',args,{windowsHide:true,timeout:30000})).stdout.trim();}

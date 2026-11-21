@@ -8,7 +8,7 @@ python scripts/measure-jvm-retained.py --output load-tests/results/retained-base
 python scripts/measure-jvm-retained.py --output load-tests/results/retained-after.json
 ```
 
-脚本对应 Compose 项目名为 `streamhub` 的八实例演练拓扑。Auth、User 各一实例，Live、Gateway、Realtime 各两实例。它从本机 9090 的 Prometheus 确认连接 Gauge 为 0，再逐个处理应用 JVM。强制 GC 与类直方图采集会暂停目标 JVM。比较同一进程的两次采样时，核对 startedAt 一致。
+脚本对应 Compose 项目名为 `echoroom` 的八实例演练拓扑。Auth、User 各一实例，Live、Gateway、Realtime 各两实例。它从本机 9090 的 Prometheus 确认连接 Gauge 为 0，再逐个处理应用 JVM。强制 GC 与类直方图采集会暂停目标 JVM。比较同一进程的两次采样时，核对 startedAt 一致。
 
 运行镜像没有 JDK Attach 客户端，因此使用已缓存的 python:3.12-slim 临时容器，关闭网络、共享目标 PID namespace、采用相同 UID/GID，并仅在此诊断容器授予 SYS_PTRACE。不修改应用镜像或开放远程诊断端口。只允许 GC.heap_info、GC.run、GC.class_histogram；不提供代理加载、任意命令或堆转储功能。输出是空间用量与类计数，不包含对象字段值。
 

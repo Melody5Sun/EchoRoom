@@ -8,7 +8,7 @@
 
 初始额度：秒杀每用户每活动 2/s、突发 4；送礼每用户 5/s、突发 10；弹幕每用户 3/s、突发 5；活动/房间总量均为 100/s、突发 200。节点业务在途上限 128，HTTP 工作线程 128、接入等待 32。HTTP 超限返回 429 与向上取整的 Retry-After；Redis/并发不足返回 503。WebSocket 使用 ERROR 的 RATE_LIMITED/UNAVAILABLE、retryAfterMs。
 
-`STREAMHUB_TRAFFIC_MODE=observe|enforce|disabled` 控制业务额度；网关使用 `GATEWAY_TRAFFIC_MODE`。observe 仍保护节点并发，且 Redis 故障仍拒绝交易。上线先 observe 观察拒绝指标，再 enforce；disabled 只供受控回滚。额度全部见 `.env.example`。双 Key Lua 当前针对单 Redis/Sentinel，**不能直接切换成 Redis Cluster**，账号桶和房间桶可能不在同一 Slot。
+`ECHOROOM_TRAFFIC_MODE=observe|enforce|disabled` 控制业务额度；网关使用 `GATEWAY_TRAFFIC_MODE`。observe 仍保护节点并发，且 Redis 故障仍拒绝交易。上线先 observe 观察拒绝指标，再 enforce；disabled 只供受控回滚。额度全部见 `.env.example`。双 Key Lua 当前针对单 Redis/Sentinel，**不能直接切换成 Redis Cluster**，账号桶和房间桶可能不在同一 Slot。
 
 WebSocket 每连接 FIFO 队列默认 256 条/256 KiB（包含正在发送的消息），节点总量 64 MiB；固定发送线程 16、待调度任务最多 20000。独立看门狗每 100ms 检查默认 5s 的发送超时；超限或调度拒绝先释放本地状态与队列，再交独立关闭线程。Redis Presence 清理独立排队，满时依靠 TTL 回收。连接总数默认 20000，单房间单节点 10000，都只是保护上限。
 
@@ -16,7 +16,7 @@ WebSocket 每连接 FIFO 队列默认 256 条/256 KiB（包含正在发送的消
 
 已有房间在 Redis 订阅恢复期间也拒绝新连接，不能因为保留了房间引用就视作订阅就绪；失败加入不增加引用计数。legacy 模式同样要求全局订阅就绪，既有连接保留心跳与本地发送能力。
 
-业务握手使用 streamhub_realtime_admission_rejected_total 的固定 reason 标签区分 invalid_request、room_missing、room_unavailable、user_inactive、user_unavailable、node_capacity、room_capacity 和 subscription_unavailable，不附带用户/房间 ID。注册计数为 streamhub_realtime_admission_registered_total；它不等于客户端已经收到 CONNECTED，须与客户端审计比较。暂时不可用、过载及慢连接使用应用关闭码 4001（Retry later），客户端按现有退避策略重连；明确停用或不存在的用户仍为 1008。注册前关闭也走独立有界关闭线程。[Gateway 4.2.4 路由过滤器](https://raw.githubusercontent.com/spring-cloud/spring-cloud-gateway/v4.2.4/spring-cloud-gateway-server/src/main/java/org/springframework/cloud/gateway/filter/WebsocketRoutingFilter.java) 会把 1013 改写为 1002，4001 可透传，已由真实网关控制例验证。
+业务握手使用 echoroom_realtime_admission_rejected_total 的固定 reason 标签区分 invalid_request、room_missing、room_unavailable、user_inactive、user_unavailable、node_capacity、room_capacity 和 subscription_unavailable，不附带用户/房间 ID。注册计数为 echoroom_realtime_admission_registered_total；它不等于客户端已经收到 CONNECTED，须与客户端审计比较。暂时不可用、过载及慢连接使用应用关闭码 4001（Retry later），客户端按现有退避策略重连；明确停用或不存在的用户仍为 1008。注册前关闭也走独立有界关闭线程。[Gateway 4.2.4 路由过滤器](https://raw.githubusercontent.com/spring-cloud/spring-cloud-gateway/v4.2.4/spring-cloud-gateway-server/src/main/java/org/springframework/cloud/gateway/filter/WebsocketRoutingFilter.java) 会把 1013 改写为 1002，4001 可透传，已由真实网关控制例验证。
 
 活动和房间的展示/前置筛选使用 Redis 元数据缓存，正常 TTL 30～35s、空值 3s；同节点按 Key 合并回源，数据库回源并发最多 16。缓存异常可有界回源。业务变更事务提交后失效，失效失败由 TTL 收敛；展示短暂过期允许，封禁/禁言/钱包不缓存为判断依据。成功创建秒杀订单时用数据库条件更新重新检查活动状态、时间和预占上限。
 
@@ -52,15 +52,15 @@ docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
 
 预算包括最大副本数、运维及迁移连接，不能超过 MySQL max_connections 的 80%；脚本同时约束两组 MQ 消费线程和业务并发。默认开发部署和 HA 都使用 Auth/User/Live 独立池配置。默认 Reserved=40，覆盖演练中三 Nacos（每个池最多 5）及迁移、运维、Router、监控连接；生产按实际备份和额外连接重新计算。
 
-Grafana 新增 StreamHub capacity 面板；Prometheus 使用 DNS 服务发现抓取全部应用副本，采集 HTTP 分位、在途量、限流、队列字节、慢连接、缓存、钱包锁、MQ、Outbox、GC。可选 overlay 加入 MySQL、Redis、主机 exporter。Docker Desktop 的 node-exporter 反映 Linux VM；生产在每个宿主机部署。HA 监控应分别抓取各数据库/Redis 节点，不能只抓一个已停止的节点。监控账号脚本使用本地演练口令，生产应自行配置 Secret。
+Grafana 新增 EchoRoom capacity 面板；Prometheus 使用 DNS 服务发现抓取全部应用副本，采集 HTTP 分位、在途量、限流、队列字节、慢连接、缓存、钱包锁、MQ、Outbox、GC。可选 overlay 加入 MySQL、Redis、主机 exporter。Docker Desktop 的 node-exporter 反映 Linux VM；生产在每个宿主机部署。HA 监控应分别抓取各数据库/Redis 节点，不能只抓一个已停止的节点。监控账号脚本使用本地演练口令，生产应自行配置 Secret。
 
 频道滚动切换分三步，每步等待全部副本完成：
 
-1. `STREAMHUB_REALTIME_CHANNEL_MODE=dual-legacy`：订阅全局和本节点活跃房间，仍只发布全局。
+1. `ECHOROOM_REALTIME_CHANNEL_MODE=dual-legacy`：订阅全局和本节点活跃房间，仍只发布全局。
 2. `dual-room`：保持双订阅，只发布房间频道。
 3. `room`：只订阅活跃房间。
 
-`legacy` 为旧频道应急模式。回滚按相反顺序执行；禁止同时双发布。缓存、异步发送分别由 STREAMHUB_CACHE_ENABLED、STREAMHUB_ASYNC_SEND 控制；同步发送回滚模式只供低负载排障，仍串行且有队列边界。
+`legacy` 为旧频道应急模式。回滚按相反顺序执行；禁止同时双发布。缓存、异步发送分别由 ECHOROOM_CACHE_ENABLED、ECHOROOM_ASYNC_SEND 控制；同步发送回滚模式只供低负载排障，仍串行且有队列边界。
 
 ## 验收
 

@@ -14,7 +14,7 @@ const fixture=JSON.parse(readFileSync(path.join(root,'load-tests/results/fixture
 if(!['http://localhost:8089','http://127.0.0.1:8089'].includes(fixture.baseUrl))throw new Error('Local isolated HA only');
 const room=fixture.roomId,account=fixture.participants[0];
 const run='redis-active-'+randomUUID().slice(0,8);
-const nodes=['streamhub-live-service-1','streamhub-live-service-2'];
+const nodes=['echoroom-live-service-1','echoroom-live-service-2'];
 const report={run,roomId:room,passed:false};
 const clients=[];
 let stopped,heartbeat;
@@ -37,7 +37,7 @@ async function api(route,body){
 async function counts(){
   return Promise.all(nodes.map(async node=>{
     const text=await docker(['exec',node,'wget','-qO-','http://localhost:8083/actuator/prometheus']);
-    return Number(text.match(/^streamhub_realtime_send_connections ([0-9.eE+-]+)$/m)?.[1] ?? NaN);
+    return Number(text.match(/^echoroom_realtime_send_connections ([0-9.eE+-]+)$/m)?.[1] ?? NaN);
   }));
 }
 async function connect(){
@@ -80,13 +80,13 @@ try{
   const pair=[first,second];
   const addressToNode=new Map();
   for(let i=1;i<=3;i++){
-    const name=`streamhub-ha-redis-${i}-1`;
+    const name=`echoroom-ha-redis-${i}-1`;
     const address=await docker(['inspect','--format','{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}',name]);
     addressToNode.set(address,name);
     addressToNode.set(`redis-${i}`,name);
   }
   async function primary(){
-    const value=await redis('streamhub-ha-sentinel-1-1','-p','26379','SENTINEL','get-master-addr-by-name','streamhub');
+    const value=await redis('echoroom-ha-sentinel-1-1','-p','26379','SENTINEL','get-master-addr-by-name','echoroom');
     const node=addressToNode.get(value.split(/\r?\n/)[0]);
     if(!node)throw new Error('Sentinel returned a node outside the isolated HA project');
     return node;
@@ -95,7 +95,7 @@ try{
   await heartbeatProbe(pair);
   // Ensure both replicas contain the pre-fault presence and credentials.
   const fence=execute('docker',['exec','-i',old,'redis-cli','--raw'],{windowsHide:true,timeout:15000});
-  fence.child.stdin.end(`SET streamhub:drill:${run} ready EX 120\nWAIT 2 5000\n`);
+  fence.child.stdin.end(`SET echoroom:drill:${run} ready EX 120\nWAIT 2 5000\n`);
   if((await fence).stdout.trim().split(/\r?\n/).at(-1)!=='2')throw new Error('Both replicas must be ready');
   const begin=Date.now();
   stopped=old;await docker(['stop','-t','5',old],30000);
@@ -146,7 +146,7 @@ try{
   await docker(['start',old],30000);stopped=undefined;
   await until(async()=>{const info=await redis(old,'INFO','replication');return info.includes('role:slave') && info.includes('master_link_status:up');});
   report.oldPrimaryRejoined=true;
-  const replicationKey=`streamhub:drill:${run}:after`;
+  const replicationKey=`echoroom:drill:${run}:after`;
   await redis(next,'SET',replicationKey,run,'EX','60');
   await until(async()=> (await redis(old,'GET',replicationKey))===run,15000);
   await redis(next,'DEL',replicationKey);

@@ -1,8 +1,8 @@
 groups:
-- name: streamhub-mq
+- name: echoroom-mq
   rules:
   - alert: RocketMqConsumerLagHigh
-    expr: max by (consumer_group) (streamhub_mq_consumer_lag) > 1000
+    expr: max by (consumer_group) (echoroom_mq_consumer_lag) > 1000
     for: 5m
     labels:
       severity: warning
@@ -11,7 +11,7 @@ groups:
       description: Consumer group {{ $labels.consumer_group }} has more than 1000
         pending messages for 5 minutes.
   - alert: RocketMqDeadLetterPending
-    expr: max(streamhub_mq_deadletter_new) > 0
+    expr: max(echoroom_mq_deadletter_new) > 0
     for: 1m
     labels:
       severity: critical
@@ -19,7 +19,7 @@ groups:
       summary: RocketMQ dead letters require attention
       description: At least one persisted dead letter is waiting for replay or ignore.
   - alert: RocketMqOutboxBacklogHigh
-    expr: max(streamhub_mq_outbox_pending) > 100
+    expr: max(echoroom_mq_outbox_pending) > 100
     for: 5m
     labels:
       severity: warning
@@ -27,7 +27,7 @@ groups:
       summary: MQ outbox backlog is high
       description: More than 100 outbox events have been pending for 5 minutes.
   - alert: RocketMqOutboxOldestPendingTooOld
-    expr: max(streamhub_mq_outbox_oldest_age_seconds) > 300
+    expr: max(echoroom_mq_outbox_oldest_age_seconds) > 300
     for: 2m
     labels:
       severity: critical
@@ -35,24 +35,24 @@ groups:
       summary: MQ outbox delivery is stalled
       description: The oldest pending outbox event is more than 5 minutes old.
   - alert: RocketMqOutboxDeliveryExhausted
-    expr: max(streamhub_mq_outbox_failed) > 0
+    expr: max(echoroom_mq_outbox_failed) > 0
     for: 1m
     labels:
       severity: critical
     annotations:
       summary: MQ outbox retries exhausted
       description: At least one outbox event exhausted its configured delivery attempts.
-- name: streamhub-capacity
+- name: echoroom-capacity
   rules:
   - alert: WebSocketSendPressure
-    expr: streamhub_realtime_send_bytes > 50331648
+    expr: echoroom_realtime_send_bytes > 50331648
     for: 2m
     labels:
       severity: warning
     annotations:
       summary: WebSocket pending bytes exceed 75% of default node budget
   - alert: WebSocketSlowClients
-    expr: sum(rate(streamhub_realtime_send_closed_total[5m])) > 1
+    expr: sum(rate(echoroom_realtime_send_closed_total[5m])) > 1
     for: 2m
     labels:
       severity: warning
@@ -66,14 +66,14 @@ groups:
     annotations:
       summary: Database connection acquisition is queued
   - alert: TrafficDependencyUnavailable
-    expr: sum(rate(streamhub_traffic_unavailable_total[5m])) > 0
+    expr: sum(rate(echoroom_traffic_unavailable_total[5m])) > 0
     for: 1m
     labels:
       severity: critical
     annotations:
       summary: Traffic admission Redis dependency unavailable
   - alert: RealtimeDispatchDropped
-    expr: sum(rate(streamhub_realtime_dispatch_dropped_total[5m])) > 0
+    expr: sum(rate(echoroom_realtime_dispatch_dropped_total[5m])) > 0
     for: 1m
     labels:
       severity: warning
