@@ -73,6 +73,29 @@ public class LiveRoomService {
         return toView(findRoom(roomId), null);
     }
 
+    /** SRS on_publish: only the stream key issued by the latest start of a LIVE room may publish. */
+    public boolean canPublish(String app, String stream, String param) {
+        if (!"live".equals(app) || stream == null || !stream.matches("\\d{1,18}")) {
+            return false;
+        }
+        String streamKey = queryParam(param, "streamKey");
+        return streamKey != null && !streamKey.isBlank()
+                && liveRoomRepository.isLiveWithStreamKeyHash(Long.parseLong(stream), sha256(streamKey));
+    }
+
+    static String queryParam(String query, String name) {
+        if (query == null) {
+            return null;
+        }
+        for (String pair : query.replaceFirst("^\\?", "").split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq > 0 && pair.substring(0, eq).equals(name)) {
+                return pair.substring(eq + 1);
+            }
+        }
+        return null;
+    }
+
     public LiveRoomView get(long roomId) {
         return toView(liveRoomRepository.findCachedById(roomId).orElseThrow(
             () -> new BusinessException(ErrorCode.NOT_FOUND, "直播间不存在")), null);

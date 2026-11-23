@@ -605,6 +605,8 @@ services:
     environment:
       CANDIDATE: ${MEDIA_PUBLIC_IP:-127.0.0.1}
       SRS_RTC_SERVER_LISTEN: '18001'
+      SRS_VHOST_HTTP_HOOKS_ENABLED: 'on'
+      SRS_VHOST_HTTP_HOOKS_ON_PUBLISH: ${SRS_ON_PUBLISH_URL:-http://live-service:8083/internal/srs/on-publish}
   srs-2:
     restart: unless-stopped
     image: ossrs/srs:6
@@ -624,6 +626,8 @@ services:
     environment:
       CANDIDATE: ${MEDIA_PUBLIC_IP:-127.0.0.1}
       SRS_RTC_SERVER_LISTEN: '18002'
+      SRS_VHOST_HTTP_HOOKS_ENABLED: 'on'
+      SRS_VHOST_HTTP_HOOKS_ON_PUBLISH: ${SRS_ON_PUBLISH_URL:-http://live-service:8083/internal/srs/on-publish}
   media-proxy:
     restart: unless-stopped
     image: nginx:1.27-alpine

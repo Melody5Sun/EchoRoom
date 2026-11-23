@@ -100,6 +100,10 @@ services:
       - "1985:1985"
       - "8080:8080"
       - "8000:8000/udp"
+    environment:
+      # Reject publishes whose streamKey does not match the room's current live session.
+      SRS_VHOST_HTTP_HOOKS_ENABLED: "on"
+      SRS_VHOST_HTTP_HOOKS_ON_PUBLISH: ${SRS_ON_PUBLISH_URL:-http://live-service:8083/internal/srs/on-publish}
     networks: [echoroom]
 
   auth-service:

@@ -61,6 +61,15 @@ public class LiveRoomRepository {
         return rooms.stream().findFirst();
     }
 
+    public boolean isLiveWithStreamKeyHash(long roomId, String streamKeyHash) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM live_room WHERE id = ? AND status = 'LIVE' AND stream_key_hash = ?",
+                Long.class,
+                roomId,
+                streamKeyHash);
+        return count != null && count > 0;
+    }
+
     public boolean start(long roomId, long anchorId, String streamKeyHash) {
         invalidate(roomId);
         return jdbcTemplate.update(

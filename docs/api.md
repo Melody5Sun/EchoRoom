@@ -86,6 +86,8 @@ Realtime Gateway 内部调用 Auth 的 `POST /api/v1/auth/ws-ticket/introspect`�
 
 直播间开始后，响应中的 pushUrl 用于 OBS 推流，playbackUrl 用于 HTTP-FLV 播放，webrtcPlaybackUrl 用于 WebRTC 播放。
 
+推流鉴权：SRS 通过 http_hooks 的 on_publish 回调 live-service 的内部接口 `POST /internal/srs/on-publish`（不经过网关）。只有 app 为 `live`、直播间处于 LIVE、且 streamKey 与本次开播签发的一致时才允许推流；每次开播都会签发新的 streamKey，下播后旧 key 失效。live-service 不可用时推流会被拒绝。
+
 浏览器先带 Bearer Token 调用 `POST /api/v1/auth/ws-ticket`，再连接 `ws://localhost:8090/ws/chat?roomId={roomId}&ticket={ticket}`。通过 Nginx 前端访问时可使用同源 `/ws/chat`。Ticket 默认有效 30 秒且只能使用一次，每次重连都要重新申请。支持自定义握手请求头的客户端也可以直接通过 Authorization Bearer 鉴权。
 
 收到 `CONNECTED` 后业务连接就绪。浏览器每 20 秒发送心跳：
